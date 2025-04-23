@@ -1,0 +1,1 @@
+sigma: float | list, r: float = .02, q: float = 0
