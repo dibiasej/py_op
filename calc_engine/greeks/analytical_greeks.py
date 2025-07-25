@@ -47,23 +47,26 @@ class AnalyticalDelta:
         return f"Delta"
     
 class AnalyticalTheta:
-
     @staticmethod
-    def calculate(S: int, K: int, T: float, sigma: float, r: float = 0, q: float = 0, otype: str = "call") -> float:
-
+    def calculate(S: float, K: float, T: float, sigma: float, r: float = 0.0, q: float = 0.0, otype: str = "call") -> float:
         if T > 1:
-            T /= 252
+            T /= 365  # Assume user passed T in trading days
 
-        d1: float = (np.log(S/K) + (r - q + ((sigma**2)/2))*T) / (sigma * np.sqrt(T))
-        d2: float = d1 - sigma*np.sqrt(T)
+        d1 = (np.log(S / K) + (r - q + 0.5 * sigma**2) * T) / (sigma * np.sqrt(T))
+        d2 = d1 - sigma * np.sqrt(T)
 
         if otype == "call":
-            theta = -((S * norm.pdf(d1) * sigma) / (2 * np.sqrt(T))) - r * K * np.exp(-r * T) * norm.cdf(d2)
-            return theta / 100
-        
+            theta = (-S * np.exp(-q * T) * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) 
+                     - r * K * np.exp(-r * T) * norm.cdf(d2) 
+                     + q * S * np.exp(-q * T) * norm.cdf(d1))
         elif otype == "put":
-            theta = -((S * norm.pdf(d1) * sigma) / (2 * np.sqrt(T))) + r * K * np.exp(-r * T) * norm.cdf(-d2)
-            return theta / 100
+            theta = (-S * np.exp(-q * T) * norm.pdf(d1) * sigma / (2 * np.sqrt(T)) 
+                     + r * K * np.exp(-r * T) * norm.cdf(-d2) 
+                     - q * S * np.exp(-q * T) * norm.cdf(-d1))
+        else:
+            raise ValueError("otype must be 'call' or 'put'")
+
+        return theta /100
     
 class AnalyticalGamma:
 
@@ -118,8 +121,8 @@ class AnalyticalVolga:
 
         d1: float = (np.log(S/K) + (r - q + ((sigma**2)/2))*T) / (sigma * np.sqrt(T))
         d2: float = d1 - sigma*np.sqrt(T)
-        volga: float = S * np.sqrt(T) * norm.pdf(d1) * ((d1*d2)/sigma)
-        return volga / 100
+        volga: float = np.sqrt(T) * norm.pdf(d1) * ((d1*d2)/sigma)
+        return volga
     
 class AnalyticalCharm:
 

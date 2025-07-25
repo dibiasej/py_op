@@ -4,7 +4,7 @@ from scipy.stats import norm, ncx2
 from scipy.integrate import quad
 import scipy.special as scps
 
-from ..calc_utils import model_utils as mu
+from utils import model_utils as mu
 
 """
 We might add a class Analytical that is a Factory to create one of our option pricing model
@@ -129,12 +129,12 @@ class SABRAnalytical(mu.SABRUtils):
     """
     
     @staticmethod
-    def call(S: float, K: int, T: float, sigma_0: float, r: float, q: float, alpha: float, beta: float, rho: float):
+    def call(S: float, K: int, T: float, sigma_0: float, alpha: float, rho: float, beta: float = 0.5, r: float = 0.04, q: float = 0):
         normal_vol = SABRAnalytical.normal_vol(S, K, T, sigma_0, alpha, beta, rho)
         return BachelierAnalytical().call(S, K, T, normal_vol, r)
     
     @classmethod
-    def put(cls, S: float, K: int, T: float, sigma_0: float, r: float, q: float, alpha: float, beta: float, rho: float):
+    def put(cls, S: float, K: int, T: float, sigma_0: float, alpha: float, rho: float, beta: float = 0.5, r: float = 0, q: float = 0):
         normal_vol = SABRAnalytical().normal_vol(S, K, T, sigma_0, alpha, beta, rho)
         return BachelierAnalytical().put(S, K, T, normal_vol, r)
 

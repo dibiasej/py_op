@@ -3,8 +3,6 @@
 from ..greeks.analytical_greeks import AnalyticalVega
 from ..option_pricing import analytical_solutions as an
 
-
-
 import numpy as np
 from scipy.optimize import root
 """
@@ -104,7 +102,7 @@ class RootFinder(ImpliedVolatilityMethod):
     def __init__(self, model = an.BlackScholesMertonAnalytical()) -> None:
         super().__init__(model)
 
-    def calculate(self, market_price: float, S: float, K: int, T: float, r: float = .05, initial_guess: float = .2, otype: str = "call", q = .02, **kwargs) -> float:
+    def calculate(self, market_price: float, S: float, K: int, T: float, r: float = .05, initial_guess: float = .15, otype: str = "call", q = .02, **kwargs) -> float:
 
         if otype == "call":
             

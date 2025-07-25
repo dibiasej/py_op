@@ -1,7 +1,11 @@
 from abc import ABC, abstractmethod
 import numpy as np
 
-# We need to add a bachelier simulation if we can
+"""
+We need to add q for the simulations.
+"""
+
+RISK_FREE_RATE = 0.05
 
 class Simulation(ABC):
 
@@ -9,17 +13,33 @@ class Simulation(ABC):
     def paths(self):
         pass
 
-    @abstractmethod
-    def call(self):
-        pass
+    def call(self, S0, K, T, r=RISK_FREE_RATE, M = 100, I = 1000, **kwargs):
+        if isinstance(K, (int, float)):
+            K = [K]
 
-    @abstractmethod
-    def put(self):
-        pass
+        paths = self.paths(S0, T, r, M, I, **kwargs)  # model-specific args
+        ST = paths[-1][:, np.newaxis]
+        K = np.array(K)[np.newaxis, :]
+
+        payoffs = np.maximum(ST - K, 0)
+        prices = np.exp(-r * T) * np.mean(payoffs, axis=0)
+        return prices
+
+    def put(self, S0, K, T, r=RISK_FREE_RATE, M = 100, I = 1000, **kwargs):
+        if isinstance(K, (int, float)):
+            K = [K]
+
+        paths = self.paths(S0, T, r, M, I, **kwargs)
+        ST = paths[-1][:, np.newaxis]
+        K = np.array(K)[np.newaxis, :]
+
+        payoffs = np.maximum(K - ST, 0)
+        prices = np.exp(-r * T) * np.mean(payoffs, axis=0)
+        return prices
 
 class BlackScholesSimulation(Simulation):
         
-    def paths(self, S: float, T: float, sigma: float, r: float, M: int, I: int) -> list:
+    def paths(self, S: float, T: float, r: float, M: int, I: int, sigma: float) -> list:
         dt = T / M
         S_paths = np.zeros((M + 1, I))
         S_paths[0] = S
@@ -30,21 +50,9 @@ class BlackScholesSimulation(Simulation):
 
         return S_paths
     
-    def call(self, S: float, K: int, T: float, sigma: float, r: float = .06, q: float = 0, M = 1000, I = 10000) -> float:
-
-        paths = self.paths(S, T, sigma, r, M, I)
-    
-        return np.exp(-r * T) * np.maximum(paths[-1] - K, 0).mean()
-
-    def put(self, S: float, K: int, T: float, sigma: float, r: float = .05, q: float = 0, M = 1000, I = 10000) -> float:
-
-        paths = self.paths(S, T, sigma, r, M, I)
-
-        return np.exp(-r * T) * np.maximum(K - paths[-1], 0).mean()
-    
 class BachelierSimulation(Simulation):
     
-    def paths(self, S: float, T: float, sigma: float, r: float, M: int, I: int) -> np.ndarray:
+    def paths(self, S: float, T: float, r: float, M: int, I: int, sigma: float) -> np.ndarray:
         dt = T / M
         S_paths = np.zeros((M + 1, I))
         S_paths[0] = S
@@ -55,21 +63,9 @@ class BachelierSimulation(Simulation):
 
         return S_paths
     
-    def call(self, S: float, K: int, T: float, sigma: float, r: float = .06, q: float = 0, M=1000, I=10000) -> float:
-
-        paths = self.paths(S, T, sigma, r, M, I)
-
-        return np.exp(-r * T) * np.maximum(paths[-1] - K, 0).mean()
-
-    def put(self, S: float, K: int, T: float, sigma: float, r: float = .05, q: float = 0, M=1000, I=10000) -> float:
-
-        paths = self.paths(S, T, sigma, r, M, I)
-
-        return np.exp(-r * T) * np.maximum(K - paths[-1], 0).mean()
-    
 class HestonSimulation(Simulation):
 
-    def paths(self, S: float, T: float, sigma: float, r: float, v0: float, kappa: float, theta: float, rho: float, M: int, I: int):
+    def paths(self, S: float, T: float, r: float, M: int, I: int, sigma: float, v0: float, kappa: float, theta: float, rho: float):
 
         corr_mat = np.zeros((2, 2))
         corr_mat[0, :] = [1.0, rho]
@@ -99,25 +95,9 @@ class HestonSimulation(Simulation):
                         
         return S_paths
     
-    def call(self, S: float, K: int, T: float, sigma: float, r: float = .05, q: float = 0, v0: float = .04, kappa: float = 2, theta: float = .04, rho: float = -.7, M: int = 1000, I: int = 10000) -> float:
-        """
-        Note: In this method we gave default arguments for the parameters v0, kappa, theta and rho but in reality we should not do this and pass in specific args we optimized to find
-        """
-        paths = self.paths(S, T, sigma, r, v0, kappa, theta, rho, M, I)    
-    
-        return np.exp(-r * T) * np.maximum(paths[-1] - K, 0).mean()
-    
-    def put(self, S: float, K: int, T: float, sigma: float, r: float = .05, q: float = 0, v0: float = .04, kappa: float = 2, theta: float = .04, rho: float = -.7, M: int = 1000, I: int = 10000) -> float:
-        """
-        Note: In this method we gave default arguments for the parameters v0, kappa, theta and rho but in reality we should not do this and pass in specific args we optimized to find
-        """
-        paths = self.paths(S, T, sigma, r, v0, kappa, theta, rho, M, I)
-
-        return np.exp(-r * T) * np.maximum(K - paths[-1], 0).mean()
-    
 class VarianceGammaSimulation(Simulation):
 
-    def paths(self, sigma, v, theta, S0, T, r, q, I, M):
+    def paths(self, S0, T, r, M, I, sigma, v, theta):
 
         dt = T / M
         w = np.log(1-theta*v-0.5*v*sigma**2)/v
@@ -139,27 +119,28 @@ class VarianceGammaSimulation(Simulation):
 
             xt += theta*gamma[t] + sigma*np.sqrt(gamma[t])*rn[t]
 
-            S[t] = S[0] + (r-q+w)*Tj + xt
+            #S[t] = S[0] + (r-q+w)*Tj + xt add q later
+            S[t] = S[0] + (r+w)*Tj + xt
 
         price = np.exp(S)
 
         return price
     
-    def call(self, S0, K, T, sigma=.2, v=.5, theta=.2, r=0, q=0, I=1000, M=5000):
+    def call(self, S0, K, T, sigma=.2, v=.5, theta=.2, r=0, I=1000, M=5000):
 
-        path = self.paths(S0, T, S0, T, sigma, v, theta, r, q, I, M)
+        path = self.paths(S0, T, r, M, I, sigma, v, theta)
 
         return np.exp(-r * T) * np.maximum(path[-1] - K, 0).mean()
 
-    def put(self, S0, K, T, sigma=.2, v=.5, theta=.2, r=0, q=0, I=1000, M=5000):
+    def put(self, S0, K, T, sigma=.2, v=.5, theta=.2, r=0, I=1000, M=5000):
 
-        path = self.paths(S0, T, S0, T, sigma, v, theta, r, q, I, M)
+        path = self.paths(S0, T, r, M, I, sigma, v, theta)
 
         return np.exp(-r * T) * np.maximum(K - path[-1], 0).mean()
     
 class SABRSimulation(Simulation):
 
-    def paths(self, S0, T, sigma=0.2, alpha = .8, beta=0.9, rho=-0.5, r=0.04, I=1000, M=1000):
+    def paths(self, S0, T, r, M , I, sigma=0.2, alpha = .8, beta=0.9, rho=-0.5):
     
         dt = T / M
         square_root_dt = np.sqrt(dt)
@@ -168,8 +149,6 @@ class SABRSimulation(Simulation):
         va_ = np.zeros((M + 1, I))
         va[0] = sigma
         va_[0] = sigma
-        #rn1 = np.random.standard_normal(va.shape)
-        #rn2 = np.random.standard_normal(va.shape)
 
         S = np.zeros((M + 1, I))
         S[0] = S0
@@ -197,28 +176,16 @@ class SABRSimulation(Simulation):
 
         return S
     
-    def call(self, S0, K, T, sigma=0.2, alpha=0.8, beta=0.9, rho=-0.5, r=0.04, q=0, I=1000, M=1000):
-
-        path = self.paths(S0, T, sigma, alpha, beta, rho, r, I, M)
-
-        return np.exp(-r * T) * np.maximum(path[-1] - K, 0).mean()
-
-    def put(self, S0, K, T, sigma=0.2, alpha=0.8, beta=0.9, rho=-0.5, r=0.04, q=0, I=1000, M=1000):
-
-        path = self.paths(S0, T, sigma, alpha, beta, rho, r, I, M)
-
-        return np.exp(-r * T) * np.maximum(K - path[-1], 0).mean()
-    
 class rBergomiSimulation(Simulation):
 
-    def paths(self, S: float, a: float, rho: float, xi: float, eta: float, n: int, N: int, T: float) -> None:
+    def paths(self, S: float, T: float, r: float, M: int, I: int, a: float, rho: float, xi: float, eta: float) -> None:
         """
         a: a = H - .5, this out parameter for the Hurst exponent
         xi: forward variance or initial variance
         eta: volatility of volatility
         rho: correlation between dW1 and dB
         n: steps per year
-        N: number of paths
+        I: number of paths
         T: maturity 1 = 1 year
         """
     
@@ -226,17 +193,17 @@ class rBergomiSimulation(Simulation):
 
         # create covariance matrix
         cov = np.array([[0.,0.],[0.,0.]])
-        cov[0,0] = 1./n
-        cov[0,1] = 1./((1.*a+1) * n**(1.*a+1))
-        cov[1,1] = 1./((2.*a+1) * n**(2.*a+1))
+        cov[0,0] = 1./M
+        cov[0,1] = 1./((1.*a+1) * M**(1.*a+1))
+        cov[1,1] = 1./((2.*a+1) * M**(2.*a+1))
         cov[1,0] = cov[0,1]
+        
+        s = int(M * T)
 
-        s = int(n * T)
+        dW1 = np.random.multivariate_normal(e, cov, (I, s))
 
-        dW1 = np.random.multivariate_normal(e, cov, (N, s))
-
-        Y1 = np.zeros((N, 1 + s))
-        Y2 = np.zeros((N, 1 + s)) 
+        Y1 = np.zeros((I, 1 + s))
+        Y2 = np.zeros((I, 1 + s)) 
 
         for i in np.arange(1, 1 + s, 1):
             Y1[:,i] = dW1[:,i-1,1]
@@ -250,17 +217,17 @@ class rBergomiSimulation(Simulation):
             G[k] = b ** a
 
         X = dW1[:,:,0]
-        GX = np.zeros((N, len(X[0,:]) + len(G) - 1))
+        GX = np.zeros((I, len(X[0,:]) + len(G) - 1))
 
-        for i in range(N):
+        for i in range(I):
             GX[i,:] = np.convolve(G, X[i,:]) # Convolution!
 
         Y2 = GX[:,:1 + s]
 
         Y = np.sqrt(2 * a + 1) * (Y1 + Y2) # volterra process
 
-        dt = 1.0/n
-        dW2 = np.random.randn(N, s) * np.sqrt(dt)
+        dt = 1.0/M
+        dW2 = np.random.randn(I, s) * np.sqrt(dt)
         dB = rho * dW1[:,:,0] + np.sqrt(1 - rho**2) * dW2
 
         # create variance process
@@ -274,36 +241,38 @@ class rBergomiSimulation(Simulation):
         S_path[:,0] = S
         S_path[:,1:] = S * np.exp(integral)
 
-        return S_path
+        return S_path.T
     
-    def call(self, S: float, T: float, strikes: list[float], a: float, rho: float, xi: float, eta: float, K: float = None, n: int = 100, N: int = 1000) -> float:
+    def otm_put_call(self, S: float, strikes: np.ndarray, T: float, a: float, rho: float, xi: float, eta: float, K: float = None, n: int = 100, N: int = 1000):
+        """ lets move this into our data processor, this way we only need to implement it once and use model.call() and model.put()
+        """
+        put_indices = np.where(strikes <= S)[0] # might edit this so it is only <
+        call_indices = np.where(strikes > S)[0]
 
-        ST = self.paths(S, a, rho, xi, eta, n, N, T)
-        ST = ST[:,-1][:,np.newaxis]
-        strikes = strikes[np.newaxis,:]
-        payoffs = np.maximum(ST - strikes,0)
-        prices = np.mean(payoffs, axis = 0)[:,np.newaxis]
+        call_strikes = strikes[call_indices]
+        put_strikes = strikes[put_indices]
 
-        if K == None:
-            return prices.T[0]
-        else:
-            index = np.argmin(np.abs(strikes - K))
-            return prices.T[0][index]
+        model_call = self.call(S, T, call_strikes, a, rho, xi, eta, K, n, N)
+        model_put = self.put(S, T, put_strikes, a, rho, xi, eta, K, n, N)
 
-    def put(self, S: float, T: float, strikes: list[float], a: float, rho: float, xi: float, eta: float, K: float = None, n: int = 100, N: int = 1000) -> float:
+        put_results = list(zip(put_strikes, model_put))
+        call_results = list(zip(call_strikes, model_call))
 
-        ST = self.paths(S, a, rho, xi, eta, n, N, T)
-        ST = ST[:,-1][:,np.newaxis]
-        strikes = strikes[np.newaxis,:]
-        payoffs = np.maximum(strikes - ST,0)
-        prices = np.mean(payoffs, axis = 0)[:,np.newaxis]
-
-        if K == None:
-            return prices.T[0]
-        else:
-            index = np.argmin(np.abs(strikes - K))
-            return prices.T[0][index]
+        return [(float(strike), float(price)) for strike, price in (put_results + call_results)]
     
+    def atm_put_call(self, S: float, strikes: np.ndarray, T: float, a: float, rho: float, xi: float, eta: float, n: int = 100, N: int = 5000):
+
+        put_indices = np.where(strikes <= S)[0]
+        call_indices = np.where(strikes > S)[0]
+
+        call_strikes = strikes[call_indices]
+        put_strikes = strikes[put_indices]
+
+        atm_model_call = self.call(S, T, call_strikes, a, rho, xi, eta, S, n, N)
+        atm_model_put = self.put(S, T, put_strikes, a, rho, xi, eta, S, n, N)
+
+        return (atm_model_call + atm_model_put) / 2
+
 class BCC97(Simulation):
     pass
 

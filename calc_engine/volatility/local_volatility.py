@@ -1,6 +1,6 @@
 import numpy as np
 
-from calc_engine.calc_utils import math_utils
+from utils import math_utils
 from calc_engine.option_pricing import analytical_solutions as an
 
 class LocalVolatilityMethod:

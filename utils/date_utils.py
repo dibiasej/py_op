@@ -5,7 +5,7 @@ import numpy as np
 As of now these date utils will be a bunch of functions but in the future we want to create a more robust and organized way to use these utils
 """
 
-MARKET_HOLIDAYS: list[str] = ["2024-01-01", "2024-01-15", "2024-02-19", "2024-03-29", "2024-05-27", "2024-06-19", "2024-07-04", "2024-08-02", "2024-11-28", "2024-12-25"]
+MARKET_HOLIDAYS: list[str] = ["2024-01-01", "2024-01-15", "2024-02-19", "2024-03-29", "2024-05-27", "2024-06-19", "2024-07-04", "2024-08-02", "2024-11-28", "2024-12-25", "2025-01-01", "2025-01-09", "2025-01-20", '2025-02-17']
 MISSED_DAYS: list[str] = ["2024-01-04", "2024-09-02", "2024-10-14", "2024-11-01"]
 
 def create_date_range(start: str, end: str, length: int):

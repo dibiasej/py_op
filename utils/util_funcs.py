@@ -2,36 +2,15 @@ import datetime as dt
 import yfinance as yf
 import pandas as pd
 
+from data.price_data import process_price_data
+
 MARKET_HOLIDAYS: list[str] = ["2024-01-01", "2024-01-15", "2024-02-19", "2024-03-29", "2024-05-27", "2024-06-19", "2024-07-04", "2024-08-02", "2024-11-28", "2024-12-25"]
 MISSED_DAYS: list[str] = ["2024-01-04"]
 
 TODAY: str = dt.datetime.now().strftime('%Y-%m-%d')
 
-def get_stock_price(ticker, date = TODAY):
-    """
-    Fetch the stock price for a specific date.
-
-    Args:
-    - ticker (str): The stock ticker symbol (e.g., 'AAPL').
-    - date (str): The date in 'YYYY-MM-DD' format.
-
-    Returns:
-    - float: The stock's closing price on the specified date.
-    """
-    stock = yf.Ticker(ticker)
-
-    # Convert the input date to a pandas Timestamp
-    date = pd.Timestamp(date)
-
-    # Fetch historical data around the given date
-    data = stock.history(start=date, end=date + pd.Timedelta(days=1))
-
-    # Ensure data is available
-    if data.empty:
-        raise ValueError(f"No data available for {ticker} on {date.strftime('%Y-%m-%d')}.")
-
-    # Return the closing price for the specified date
-    return data["Close"].iloc[0]
+def get_stock_price(ticker, date):
+    return process_price_data.get_close_prices(ticker, date)[0][0]
 
 def get_atm_option(o_graph, exp, date = TODAY, stock_price: float = None):
     """

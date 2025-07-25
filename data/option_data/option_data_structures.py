@@ -15,6 +15,7 @@ class OptionNode(ABC):
 
         self._strike: int = strike
         self._price: float = price
+        self._mid_price: float = (bid + ask)/2
         self._bid: float = bid
         self._ask: float = ask
         self._implied_volatility: float = implied_volatility
@@ -29,6 +30,9 @@ class OptionNode(ABC):
     
     def get_price(self) -> float:
         return self._price
+    
+    def get_mid_price(self) -> float:
+        return self._mid_price
     
     def set_price(self, value: float) -> None:
         self._price = value
@@ -68,6 +72,7 @@ class EuropeanOptionNode(OptionNode):
 
         self._strike: int = strike
         self._price: float = price
+        self._mid_price: float = (bid + ask)/2
         self._bid: float = bid
         self._ask: float = ask
         self._implied_volatility: float = implied_volatility
@@ -143,7 +148,7 @@ class TermStructureList:
         return [float(op.get_implied_volatility()) for op in self._option_node_list]
     
     def expirations(self) -> list[float]:
-        return [float(op.get_expiration()) for op in self._option_node_list]
+        return [op.get_expiration() for op in self._option_node_list]
     
     def strikes(self) -> list[float]:
         return [float(op.get_strike()) for op in self._option_node_list]
@@ -177,6 +182,27 @@ class OptionGraph:
             if option_node._strike not in self.strike_index:
                 self.strike_index[option_node._strike] = []
             self.strike_index[option_node._strike].append(option_node)
+    
+    def remove_option(self, exp: str, strike: float):
+
+        key = (exp, strike)
+
+        if key not in self.nodes:
+            return
+        
+        option_node = self.nodes.pop((exp, strike))
+
+        if exp in self.expiration_index:
+            self.expiration_index[exp] = [
+                node for node in self.expiration_index[exp]
+                if node._strike != strike
+            ]
+
+        if strike in self.strike_index:
+            self.strike_index[strike] = [
+                node for node in self.strike_index[strike]
+                if node._expiration != exp
+            ]
 
     def get_option(self, expiration: str, strike: int) -> OptionNode:
         """
@@ -223,7 +249,7 @@ class OptionGraph:
     
     def get_specified_strikes(self, min_strike: float, max_strike: float, steps: int = 1, exp: str = None) -> list[float]:
         """
-        This method gives us a list of strikes based on out specified criteria being strike max, min, expiration of the strike list and steps between strikes.
+        This method gives us a list of strikes based on our specified criteria being strike max, min, expiration of the strike list and steps between strikes.
         Params:
         min_strike: minimum strike in the list.
         max_strike: max strike in the list.

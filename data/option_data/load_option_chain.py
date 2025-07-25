@@ -7,7 +7,7 @@ import multiprocessing
 import time
 from abc import ABC, abstractmethod
 
-TICKERS: list[str] = ["spy", "QQQ", "TLT", "IEF", "SHY", "HYG", "CMBS", "GLD", "SLV", "UCO", "^vix", "vt", 'XLE',
+TICKERS: list[str] = ["SPY", "QQQ", "TLT", "IEF", "SHY", "HYG", "CMBS", "GLD", "SLV", "UCO", "^vix", "vt", 'XLE',
                	'XLF',	'XLU',	'XLI',	'GDX',	'XLK',	'XLV',	'XLY',	'XLP',	'XLB',	'XOP',	'IYR',	'XHB',
                 'ITB',	'VNQ',	'GDXJ',	'IYE',	'OIH',	'XME',	'XRT',	'SMH',	'IBB',	'KBE',	'KRE',	'XTL', 'IWM',
                 'IJR', 'IWO', 'SPMD', 'SPEU', 'SPEM', 'SPSM', 'SPYG', 'SPYV', 'MDYG', 'MDYV', 'SLYG', 'SLYV', 'KIE',
@@ -98,8 +98,8 @@ def load_data_to(ticker):
     call_file_path: str = directory + f"/{ticker}_call" + f"_{TODAY}"
     put_file_path: str = directory + f"/{ticker}_put" + f"_{TODAY}"
 
-    #call_file_path: str = directory + f"/{ticker}_call" + f"_2024-12-24"
-    #put_file_path: str = directory + f"/{ticker}_put" + f"_2024-12-24"
+    #call_file_path: str = directory + f"/{ticker}_call" + f"_2025-05-06"
+    #put_file_path: str = directory + f"/{ticker}_put" + f"_2025-05-06"
 
     with open(call_file_path, "wb") as option_chain_call_pickle_file:
         
@@ -262,16 +262,21 @@ def test() -> list[str]:
 
     return missing_tickers
 
-if __name__ == "__main__":
-    #time.sleep(1*60*60)
+def main():
+    #time.sleep(60*20)
     BulkDownload().multiprocessing_load()
-    #for ticker in ['T', 'TJX', '^NDX', '^SPX', '^RUT']:
+    #for ticker in ['UCO', '^vix', 'vt']:
         #try:
-        #SingleDownload().normal_load("T")
+        #SingleDownload().normal_load(ticker)
+        #time.sleep(2)
         #except:
             #continue
     t = test()
     print(t)
-    #print(SingleUpload().upload_chain("WMT", "2025-04-16"))
+    #print(SingleUpload().upload_chain("SPY", "2025-07-21"))
     #print(SingleUpload().upload_chain("QQQ", "2024-09-27"))
-    #print(SingleUpload().upload_chain("TSLA", "2024-09-27"))k,kk           
+    #print(SingleUpload().upload_chain("TSLA", "2024-09-27"))k,kk
+    return None
+
+if __name__ == "__main__":
+    print(main())
