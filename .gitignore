@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.so
+*.egg-info/
+.venv/
+venv/
+.env
+.env.*
+
+# Jupyter / local
+.ipynb_checkpoints/
+.DS_Store
+
+# VS Code
+.vscode/
+tempCodeRunnerFile.py
+
+# Your project: data + databases
+data/price_data/all_price_data.pkl
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite-journal
+*.db-wal
+*.db-shm
+*.sqlite-wal
+*.sqlite-shm
+
+# Optional: if you truly never want this
+trash/
+services/
