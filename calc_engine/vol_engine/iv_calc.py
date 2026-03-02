@@ -324,7 +324,7 @@ class TermStructureCalculator:
         put_ivs = [self.iv_calculator.calculate(put_price, S, f_strike, t, r=i_rate, initial_guess=.15, otype = "put", q=q) for put_price, f_strike, t, i_rate in zip(put_prices, forward_strikes, dtes, i_rates)]
 
         return put_ivs, call_ivs, i_rates
-
+    
 def main():
 
     """

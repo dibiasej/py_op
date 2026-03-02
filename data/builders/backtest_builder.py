@@ -16,7 +16,7 @@ class BacktestBuilder:
         end_date = self.portfolio.end_date
 
         for position in self.portfolio:
-            print(f"position: {position}")
+            #print(f"position: {position}")
 
             ticker = position.ticker
             exposure = position.exposure
@@ -35,13 +35,13 @@ class BacktestBuilder:
                 
                 if position.strike is not None:
                     strike = position.strike
-                    print(f"exp: {exp}")
-                    print(f"start date: {start_date}")
+                    # print(f"exp: {exp}")
+                    # print(f"start date: {start_date}")
 
                     # we still need to make it times 100 for notional value
-                    print(f"ticker = {ticker}, expiration={exp}, strike={strike}, option_type={otype}, start_date={start_date}, end_date={end_date}")
+                    #print(f"ticker = {ticker}, expiration={exp}, strike={strike}, option_type={otype}, start_date={start_date}, end_date={end_date}")
                     rows = self.repo.get_option_price_history_by_strike(ticker = ticker, expiration = exp, strike = strike, option_type=otype, start_date=start_date, end_date=end_date)
-                    print(f"rows: {rows}")
+                    #print(f"rows: {rows}")
                     close_dates, mid_prices, strikes, dtes, close_prices, spot_prices = zip(*rows)
                     mid_prices = np.array(mid_prices)
                     self.portfolio_data[(ticker, otype, strike, exp)] = (mid_prices * position.quantity, close_dates) if exposure == "long" else (-mid_prices * position.quantity, close_dates)
@@ -49,7 +49,7 @@ class BacktestBuilder:
                 elif position.moneyness is not None:
 
                     moneyness = position.moneyness
-                    print(f"ticker = {ticker}, expiration={exp}, moneyness={moneyness}, option_type={otype}, start_date={start_date}, end_date={end_date}")
+                    #print(f"ticker = {ticker}, expiration={exp}, moneyness={moneyness}, option_type={otype}, start_date={start_date}, end_date={end_date}")
                     rows = self.repo.get_option_price_history_by_moneyness(ticker = ticker, expiration=exp, moneyness=moneyness, option_type=otype, start_date=start_date, end_date=end_date)
                     close_dates, mid_prices, strikes, dtes, close_prices, spot_prices = zip(*rows)
                     self.portfolio_data[(ticker, otype, moneyness, exp)] = (mid_prices * position.quantity, close_dates) if exposure == "long" else (-mid_prices * position.quantity, close_dates)

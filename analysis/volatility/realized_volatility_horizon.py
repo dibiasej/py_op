@@ -1,4 +1,4 @@
-from analysis.time_series.realized_volatility import get_realized_vol_strategy
+from analysis.rolling_analytics.realized_volatility import get_realized_vol_strategy
 
 def horizon_analysis(ticker: str, start: str, end: str, method: str = "close_to_close", freq="D", n_min: int = 10, n_max: int = 1500, step: int = 5):
     strategy = get_realized_vol_strategy(method)

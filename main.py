@@ -86,4 +86,5 @@ Notes:
     - We will make a SkewService class that takes as an input the OptionChainRepository class
     -- SkewService will do all the data processing
     -- SkewService should return a data structure SkewSlice or a list of SkewSlices for timeseries
+    {% for post in paginator.posts %}
 """

@@ -14,7 +14,7 @@ EX:
  -- implied parameters from models like SABR, Heston, rBergomi
 """
 
-def implied_skew_moneyness(ticker, start_date, end_date, target_dte, moneyness=0.1, steps=1, max_days_diff=20):
+def implied_skew_moneyness(ticker: str, start_date: str, end_date: str, target_dte: int, moneyness: float=0.1, steps: int=1, max_days_diff: int=20):
     """
     This is the version of implied skew from Euan Sinclair retail option trading. It is also number 6 in the flash cards ipynb
     The issue with this is we need to make it constant maturity right now it just fetches the maturity closest to dte
@@ -51,6 +51,40 @@ def implied_skew_moneyness(ticker, start_date, end_date, target_dte, moneyness=0
 
     return implied_skews, dates
 
+def implied_fixed_strike_skew(ticker: str, start_date: str, end_date: str, target_dte: int, moneyness: float = .1, steps: int = 1, max_days_diff: int = 10):
+    """
+    This is the version of implied skew from Collin Bennets book Trading Volatility
+    90% - 110% or 90% - 100%
+    """
+    chain_series = create_chain_series(ticker, start_date, end_date, steps=steps)
+    implied_skews, dates = [], []
+    rf = RootFinder()
+
+    for chain in chain_series:
+        S = chain.S
+
+        otm_prices, strikes, actual_dte = chain.get_otm_skew_prices(
+            dte=target_dte, max_days_diff=max_days_diff
+        )
+
+        strikes = np.array(strikes, dtype=float)
+        m_arr = strikes / S
+
+        idx_put  = np.abs(m_arr - (1 - moneyness)).argmin()
+        idx_call = np.abs(m_arr - (1 + moneyness)).argmin()
+
+        put_price,  K_put  = float(otm_prices[idx_put]),  float(strikes[idx_put])
+        call_price, K_call = float(otm_prices[idx_call]), float(strikes[idx_call])
+
+        T = actual_dte / 365.0  # use the returned DTE for pricing
+
+        put_iv  = rf.calculate(put_price,  S, K_put,  T, otype="put")
+        call_iv = rf.calculate(call_price, S, K_call, T, otype="call")
+
+        implied_skews.append(put_iv - call_iv)
+        dates.append(chain.close_date)
+
+    return implied_skews, dates
 
 def constant_maturity_atm_iv(ticker: str, start_date: str, end_date: str, target_dte: int, q: float = 0.0, steps: int = 1):
     """
@@ -110,3 +144,96 @@ def constant_maturity_atm_iv(ticker: str, start_date: str, end_date: str, target
         dates.append(chain.close_date)
 
     return ivs, dates
+
+def forward_variance_term_structure():
+    
+    pass
+
+
+"""
+I think I want to make classes for Skew and TermStructure that have methods for calculating data, then methods for getting certain values
+like fixed skew, moneyness skew, delta skew
+"""
+
+"""
+Functions I might get rid of
+"""
+
+def constant_maturity_implied_skew_moneyness(ticker: str, start_date: str, end_date: str, target_dte: int, moneyness: float = .1, steps: int = 1):
+    """
+    This gets the constant maturity 90% - 110% skew, the value is very similar to the implied_skew_moneyness so I might get rid of it
+    """
+    chain_series = create_chain_series(ticker, start_date, end_date, steps=steps)
+    rf = RootFinder()
+    implied_skews, dates = [], []
+
+    for chain in chain_series:
+        S = chain.S
+        dte_list = chain.get_common_dtes()
+        dte_lo, dte_hi = find_bracketing_dtes(dte_list, target_dte)
+
+        if dte_lo is None and dte_hi is None:
+            continue
+
+        if dte_hi is None:
+
+            otm_prices, strikes, actual_dte = chain.get_otm_skew_prices(dte=dte_lo, max_days_diff=0)    
+            strikes = np.array(strikes, dtype=float)
+            moneyness_arr = strikes/S
+
+            idx_put  = np.abs(moneyness_arr - (1 - moneyness)).argmin()
+            idx_call = np.abs(moneyness_arr - (1 + moneyness)).argmin()
+
+            put_price,  K_put  = float(otm_prices[idx_put]),  float(strikes[idx_put])
+            call_price, K_call = float(otm_prices[idx_call]), float(strikes[idx_call])
+
+            T = actual_dte/365
+
+            put_iv  = rf.calculate(put_price,  S, K_put,  T, otype="put")
+            call_iv = rf.calculate(call_price, S, K_call, T, otype="call")
+
+            denom = (K_put - K_call) / S
+            implied_skews.append((put_iv - call_iv) / denom)
+            dates.append(chain.close_date)
+
+        else:
+            otm_prices_lo, strikes_lo, actual_dte_lo = chain.get_otm_skew_prices(dte=dte_lo, max_days_diff=0)
+            otm_prices_hi, strikes_hi, actual_dte_hi = chain.get_otm_skew_prices(dte=dte_hi, max_days_diff=0)
+            strikes_lo = np.array(strikes_lo, dtype=float)
+            strikes_hi = np.array(strikes_hi, dtype=float)
+
+            moneyness_arr_lo = strikes_lo/S
+            moneyness_arr_hi = strikes_hi/S
+
+            idx_put_lo  = np.abs(moneyness_arr_lo - (1 - moneyness)).argmin()
+            idx_call_lo = np.abs(moneyness_arr_lo - (1 + moneyness)).argmin()
+
+            idx_put_hi  = np.abs(moneyness_arr_hi - (1 - moneyness)).argmin()
+            idx_call_hi = np.abs(moneyness_arr_hi - (1 + moneyness)).argmin()
+
+            put_price_lo,  K_put_lo  = float(otm_prices_lo[idx_put_lo]),  float(strikes_lo[idx_put_lo])
+            call_price_lo, K_call_lo = float(otm_prices_lo[idx_call_lo]), float(strikes_lo[idx_call_lo])
+
+            put_price_hi,  K_put_hi  = float(otm_prices_hi[idx_put_hi]),  float(strikes_hi[idx_put_hi])
+            call_price_hi, K_call_hi = float(otm_prices_hi[idx_call_hi]), float(strikes_hi[idx_call_hi])
+
+            T_lo = actual_dte_lo/365
+            T_hi = actual_dte_hi/365
+
+            put_iv_lo  = rf.calculate(put_price_lo,  S, K_put_lo,  T_lo, otype="put")
+            call_iv_lo = rf.calculate(call_price_lo, S, K_call_lo, T_lo, otype="call")
+
+            put_iv_hi  = rf.calculate(put_price_hi,  S, K_put_hi,  T_hi, otype="put")
+            call_iv_hi = rf.calculate(call_price_hi, S, K_call_hi, T_hi, otype="call")
+
+            put_iv = linear_interpolated_iv_v1(put_iv_lo, put_iv_hi, T_lo, T_hi, target_dte/365)
+            call_iv = linear_interpolated_iv_v1(call_iv_lo, call_iv_hi, T_lo, T_hi, target_dte/365)
+
+            K_put_star  = (1 - moneyness) * S
+            K_call_star = (1 + moneyness) * S
+            denom = (K_put_star - K_call_star) / S   # = -2*moneyness
+            skew = (put_iv - call_iv) / denom
+            implied_skews.append(skew)
+            dates.append(chain.close_date)
+
+    return implied_skews, dates

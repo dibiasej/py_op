@@ -96,11 +96,18 @@ class OptionChain:
 
         return sorted(set(put_strikes) & set(call_strikes))
     
-    def get_common_strikes_at_exp(self, exp: str = None, dte: int = None) -> list[float]:
+    def get_common_strikes_at_exp(self, exp: str = None, dte: int = None, max_diff_days = 4) -> list[float]:
 
         if dte is not None:
-            exp_data = self.get_exp_from_dte(dte)
+            exp_data = self.get_exp_from_dte(dte, max_diff_days=max_diff_days)            
             exp = exp_data[0]
+            data = self.skew_data[exp]
+
+            actual_dte = exp_data[2]
+
+            call_strikes = {strike for exp, strike, opt in data if opt == "call"}
+            put_strikes = {strike for exp, strike, opt in data if opt == "put"}
+            return sorted(call_strikes & put_strikes), actual_dte
 
         elif dte is None and exp is None:
             return ValueError("exp or dte must be defined both cannot be None")
@@ -310,6 +317,11 @@ class OptionChain:
         if mid_price == True:
 
             prices, strikes, dtes = zip(*[(option.mid_price, option.strike, option.dte) for option in otm_options])
+
+            zero_frac = sum(p == 0 for p in prices) / len(prices)
+            if zero_frac > .5:
+
+                prices, strikes, dtes = zip(*[(option.price, option.strike, option.dte) for option in otm_options])
         
         else:
 
@@ -354,7 +366,7 @@ class OptionChain:
 
         return put_prices, call_prices, dtes
     
-    def get_equal_term_structure_atf_prices(self, dtes: list[int] = None, r: float = 0.04, mid_price: bool = True):
+    def get_equal_term_structure_atf_prices(self, dtes: list[int] = None, r: float = 0.04, mid_price: bool = True, max_diff_days: int = 4):
         """
         This method calculates a list of forward prices for every expiry, then it fetches the corresponding atf strike for every expiry and the correspoding put and call prices.
         The beauty of this method is no matter what for a single expiration and strike we get put and call prices so there will never be a miss match (ie put price when there is no call, etc).
@@ -376,15 +388,14 @@ class OptionChain:
         term_struct_data = []
 
         for f, dte in zip(F, dtes):
-            common_strikes = self.get_common_strikes_at_exp(dte = dte)
+            common_strikes, actual_dte = self.get_common_strikes_at_exp(dte = dte, max_diff_days=max_diff_days)
 
             option_idx = np.abs(common_strikes - f).argmin()
             strike_at_forward = common_strikes[option_idx]
             term_struct = self.get_equal_term_structure(strike_at_forward)
-
             for put, call in term_struct:
 
-                if call.dte == dte and put.dte == dte and call.strike == strike_at_forward and put.strike == strike_at_forward:
+                if call.dte == actual_dte and put.dte == actual_dte and call.strike == strike_at_forward and put.strike == strike_at_forward:
 
                     if mid_price == True:
 
@@ -393,7 +404,7 @@ class OptionChain:
                     else:
 
                         term_struct_data.append((put.price, call.price, call.dte, call.strike))
-
+                        
         put_prices, call_prices, final_dtes, for_strikes = zip(*term_struct_data)
 
         return put_prices, call_prices, final_dtes, for_strikes
