@@ -66,8 +66,8 @@ def main():
 
 
     #time.sleep(60*60)
-    load_data()
-    check_tickers()
+    # load_data()
+    # check_tickers()
 
     #print(create_chain("SPY", "2026-01-16").get_common_dtes())
 
