@@ -18,7 +18,7 @@ venv/
 tempCodeRunnerFile.py
 
 # Your project: data + databases
-data/price_data/all_price_data.pkl
+py_op/data/price_data/all_price_data.pkl
 *.db
 *.sqlite
 *.sqlite3

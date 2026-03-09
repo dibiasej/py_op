@@ -55,7 +55,7 @@ def price_date_range(start: str, end: str) -> list[str]:
 
 def option_exp_to_days(option_exp: str) -> int:
     """
-    Turns a string specifying when the option maturity is into a int representing the number of days, ex '1M' turns itno 30.
+    Turns a string specifying when the option maturity is into a int representing the number of days, ex '1M' turns into 30.
     """
     num = int(option_exp[:-1])
     unit = option_exp[-1].upper()

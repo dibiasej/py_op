@@ -4,14 +4,14 @@ import numpy as np
 import sqlite3
 from typing import Dict, Any, List, Tuple
 
-from data.option_data.download_option_chain import MultiDownload
-from data.price_data.load_price_data import download_store_all_data
-from utils.db_utils import get_connection
-from global_variables import OPTION_DB_DIR, TICKERS, TODAY
-from data.repositories.option_chain_repository import OptionChainRepository
+from py_op.data.option_data.download_option_chain import MultiDownload
+from py_op.data.price_data.load_price_data import download_store_all_data
+from py_op.utils.db_utils import get_connection
+from py_op.global_variables import OPTION_DB_DIR, TICKERS, TODAY
+from py_op.data.repositories.option_chain_repository import OptionChainRepository
 #from services.snapshot_service import VolatilitySnapShotService2
-from data.builders.option_chain_builder import create_chain
-from data.price_data.load_price_data import load_all_price_data
+from py_op.data.builders.option_chain_builder import create_chain
+from py_op.data.price_data.load_price_data import load_all_price_data
 
 def load_data():
 
@@ -66,8 +66,8 @@ def main():
 
 
     #time.sleep(60*60)
-    # load_data()
-    # check_tickers()
+    load_data()
+    check_tickers()
 
     #print(create_chain("SPY", "2026-01-16").get_common_dtes())
 
@@ -86,5 +86,4 @@ Notes:
     - We will make a SkewService class that takes as an input the OptionChainRepository class
     -- SkewService will do all the data processing
     -- SkewService should return a data structure SkewSlice or a list of SkewSlices for timeseries
-    {% for post in paginator.posts %}
 """
