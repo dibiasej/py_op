@@ -1,4 +1,5 @@
 
+from py_op.data.builders.option_chain_builder import create_chain_series
 """
 (3/1/2026) We will move the skew and constant maturity IV's from implied_values.py into here
 """
@@ -23,7 +24,13 @@ class RollingTermStructure:
 
 
 class RollingSkew:
-    pass
+    def __init__(self, ticker: str, start_date: str, end_date:str, steps: int = 1) -> None:
+        self.ticker = ticker
+        self.start_date = start_date
+        self.end_date = end_date
+        self.steps = steps
+        self.chain_series = create_chain_series(ticker, start_date, end_date, steps=steps)
+    
 
 class RollingKurtosis:
     pass

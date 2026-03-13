@@ -17,9 +17,13 @@ from py_op.calc_engine.vol_engine.iv_calc import (
     TermStructureCalculator,
 )
 
+from py_op.calc_engine.vol_engine import interpolation_models
+
 from py_op.data.price_data import process_price_data
 
 from py_op.data.builders.option_chain_builder import create_chain, create_chain_series
+
+# for analytics I am thinking I want it to look like py_op.analytics.RollingTermStructure() in a notebook
 
 __all__ = [
     # Pricing modules
@@ -34,6 +38,7 @@ __all__ = [
     "NewtonsMethod",
     "SkewCalculator",
     "TermStructureCalculator",
+    "interpolation_models",
     # Data
     "process_price_data",
     "create_chain", 

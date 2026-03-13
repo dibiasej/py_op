@@ -4,7 +4,7 @@ from scipy.stats import norm
 from scipy.optimize import minimize  
 
 from ..greeks.analytical_greeks import AnalyticalGamma, AnalyticalTheta, AnalyticalVanna, AnalyticalVolga, AnalyticalVega, AnalyticalSpeed, AnalyticalUltima, AnalyticalZomma, AnalyticalVolgaSpot
-from utils.model_utils import GVVUtils
+from py_op.utils.model_utils import GVVUtils
 
 class InterpolationBaseClass:
 
