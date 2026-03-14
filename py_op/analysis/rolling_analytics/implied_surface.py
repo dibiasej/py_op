@@ -5,6 +5,8 @@ from py_op.calc_engine.vol_engine.iv_calc import RootFinder
 from py_op.utils.date_utils import find_bracketing_dtes
 from py_op.calc_engine.vol_engine.vol_funcs import linear_interpolated_iv_v1
 from py_op.calc_engine.misc_funcs.put_call_parity import implied_rate
+from py_op.calc_engine.vol_engine.vol_funcs import variance_swap_approximation
+
 """
 (3/1/2026) We will move the skew and constant maturity IV's from implied_values.py into here
 """
@@ -21,12 +23,17 @@ class RollingAnalytics:
 
 class RollingTermStructure:
     """
-    This class will be used to get rolling term structure analytics
-    First we will make it compatible with the z-score analytics from Euan sinclairs book
-    Also make it compatible with rolling dte2 - dte1 where dte2 > dte1
-        Either add argument to each method that says z_score = True, or make completely seperate methods eg, atmf_zscore
-    We may make something like this called RollingSkew as well   
+    This class will be used to get rolling term structure analytics.
+    Either add argument to each method that says z_score = True, or make completely seperate methods eg, atmf_zscore.
+    I think we will force all of them to use a constant maturity
+    Things to add (For each var swap, atmf, constant maturity)
+    - z-score (Euan Sinclair)
+    - Relative term premia (Benn)
+    - Term premia
+    - Forward Factor (Jarod)
     """
+    def __init__(self, ticker: str, start_date: str, end_date: str, steps: int = 1, iv_calc = RootFinder()) -> None:
+        super().__init__(ticker, start_date, end_date, steps, iv_calc)
 
     def atmf():
         pass
@@ -37,6 +44,32 @@ class RollingTermStructure:
     def variance_swap():
         pass
 
+    def variance_swap_relative_term_premia(self, dte1: int = 30, dte2: int = 60, r: float = 0):
+        """
+        We want to adjust this so it uses constant maturity.
+        """
+
+        relative_premias, dates = [], []
+
+        for chain in self.chain_series:
+            S = chain.S
+
+            put_prices1, call_prices1, strikes1, actual_dtes1 = chain.get_equal_skew_prices(dte=dte1, max_days_diff=10)
+            var_swap1 = variance_swap_approximation(S, put_prices1, call_prices1, strikes1, actual_dtes1[0], r)
+
+            put_prices2, call_prices2, strikes2, actual_dtes2 = chain.get_equal_skew_prices(dte=dte2, max_days_diff=10)
+            var_swap2 = variance_swap_approximation(S, put_prices2, call_prices2, strikes2, actual_dtes2[0], r)
+
+            term_premia = (var_swap2 - var_swap1)/var_swap1
+
+            relative_premias.append(term_premia)
+            dates.append(chain.close_date)
+            print(f"date: {chain.close_date}")
+            print(f"actual dte1: {actual_dtes1[0]}")
+            print(f"actual dte2: {actual_dtes2[0]}")
+            print("\n")
+
+        return relative_premias, dates
 
 class RollingSkew(RollingAnalytics):
 
