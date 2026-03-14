@@ -6,6 +6,15 @@ from scipy.optimize import minimize
 from ..greeks.analytical_greeks import AnalyticalGamma, AnalyticalTheta, AnalyticalVanna, AnalyticalVolga, AnalyticalVega, AnalyticalSpeed, AnalyticalUltima, AnalyticalZomma, AnalyticalVolgaSpot
 from py_op.utils.model_utils import GVVUtils
 
+"""
+IV Parameterizations: 
+- Fixed Strike - iv = f(K)
+- Floating Strike:
+    - moneyness iv = f(K/S)  (or use forward)
+    - log moneyness iv = f(ln(K/S))   (or use forward)
+    - Normalized log moneyness iv = f(ln(K/S) / ATM IV*sqrt(T))   (ATM IV is our anchor vol, or use ATMF)
+"""
+
 class InterpolationBaseClass:
 
     def skew(self):
