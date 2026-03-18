@@ -3,9 +3,8 @@ import numpy as np
 from py_op.data.builders.option_chain_builder import create_chain_series
 from py_op.calc_engine.vol_engine.iv_calc import RootFinder
 from py_op.utils.date_utils import find_bracketing_dtes
-from py_op.calc_engine.vol_engine.vol_funcs import linear_interpolated_iv_v1
 from py_op.calc_engine.misc_funcs.put_call_parity import implied_rate
-from py_op.calc_engine.vol_engine.vol_funcs import variance_swap_approximation
+from py_op.calc_engine.vol_engine.vol_funcs import variance_swap_approximation, linear_interpolated_iv_v1, forward_volatility
 
 """
 (3/1/2026) We will move the skew and constant maturity IV's from implied_values.py into here
@@ -94,13 +93,31 @@ class RollingTermStructure(RollingAnalytics):
             term_premias.append(term_premia)
             dates.append(date)
 
-        return term_premias, dates
+    def variance_swap_forward(self, dte1: int = 30, dte2: int = 60, r: float = 0):
+        """
+        
+        """
+        forward_factor, dates = [], []
+
+        for date, var_swap1, var_swap2 in self._variance_swap_generator(dte1, dte2, r):
+            forward_vol = forward_volatility(var_swap1, var_swap2, dte1, dte2)
+            forward_factor.append(forward_vol)
+            dates.append(date)
+
+        return forward_factor, dates
     
-    def variance_swap_forward_factor(self):
+    def variance_swap_forward_factor(self, dte1: int = 30, dte2: int = 60, r: float = 0):
         """
-        For this we do not need to construct the whole forward curve we can just use the basic formula to get var_swap_fwd_t2-t2 with var_swap t2 and var_swap t1
+        
         """
-        pass
+        forward_factor, dates = [], []
+
+        for date, var_swap1, var_swap2 in self._variance_swap_generator(dte1, dte2, r):
+            forward_vol = forward_volatility(var_swap1, var_swap2, dte1, dte2)
+            forward_factor.append(var_swap1/forward_vol)
+            dates.append(date)
+
+        return forward_factor, dates
 
     def variance_swap_z_score(self):
         pass
@@ -153,6 +170,7 @@ class RollingSkew(RollingAnalytics):
         """
         This measures 90% put iv - 110% call iv -- we should make a modification that allows 100% atm iv.
         Collin Bennet refers to 90% put iv - 100% atm iv as fixed strike skew.
+        Morgan Stanley calls this relative skew, so we might change the name to relative skew.
         """
         implied_skews, dates = [], []
 

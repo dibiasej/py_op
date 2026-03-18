@@ -49,3 +49,16 @@ def linear_interpolated_iv_v1(iv1, iv2, dte1, dte2, target_date):
     """
     iv = iv1 + ((np.log(target_date) - np.log(dte1)) / (np.log(dte2) - np.log(dte1))) * (iv2 - iv1)
     return iv
+
+def forward_volatility(iv1, iv2, dte1, dte2) -> float:
+    """
+    This function calculates the forward volatility, ie the volatility expected between two dated T1 and T2.
+    Arguments:
+    iv1 float: Can be atm iv, var swap, any vol at earlier date
+    iv2 float: Can be atm iv, var swap, any vol at later date
+    dte1 (int): This is the earlier days to expiration, this should NOT be divided by 365
+    dte2 (int): This is the later days to expiration, this should NOT be divided by 365
+    """
+    T1 = dte1/365
+    T2 = dte2/365
+    return np.sqrt((T2*iv2**2 - T1*iv1**2) / (T2 - T1))
