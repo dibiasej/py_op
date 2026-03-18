@@ -75,23 +75,45 @@ class RollingTermStructure(RollingAnalytics):
 
             yield chain.close_date, var_swap1, var_swap2
 
-    def variance_swap_relative_term_premia(self, dte1: int = 30, dte2: int = 60, r: float = 0):
+    def variance_swap_relative_term_premia(self, dte1: int = 30, dte2: int = 60, r: float = 0, normalized: bool = False):
         relative_premias, dates = [], []
+        T1, T2 = dte1/364, dte2/364
 
         for date, var_swap1, var_swap2 in self._variance_swap_generator(dte1, dte2, r):
-            term_premia = (var_swap2 - var_swap1) / var_swap1
+
+            if normalized:
+
+                term_premia = ((var_swap2 - var_swap1) / var_swap1) * (np.sqrt(T2*T1) / (np.sqrt(T2) - np.sqrt(T1)))
+            else:
+
+                term_premia = (var_swap2 - var_swap1) / var_swap1
+
             relative_premias.append(term_premia)
             dates.append(date)
 
         return relative_premias, dates
     
-    def variance_swap_term_premia(self, dte1: int = 30, dte2: int = 60, r: float = 0):
+    def variance_swap_term_premia(self, dte1: int = 30, dte2: int = 60, r: float = 0, normalized: bool = False):
+        """
+        We divide by 365, but we might actually have to divide by 252.
+        Normalizing the term structure makes it easier to compare if we plug in multiple dtes
+        """
         term_premias, dates = [], []
+        T1, T2 = dte1/364, dte2/364
 
         for date, var_swap1, var_swap2 in self._variance_swap_generator(dte1, dte2, r):
-            term_premia = var_swap2 - var_swap1
+
+            if normalized:
+
+                term_premia = (var_swap2 - var_swap1) * (np.sqrt(T2*T1) / (np.sqrt(T2) - np.sqrt(T1)))
+            else:
+
+                term_premia = var_swap2 - var_swap1
+
             term_premias.append(term_premia)
             dates.append(date)
+
+        return term_premias, dates
 
     def variance_swap_forward(self, dte1: int = 30, dte2: int = 60, r: float = 0):
         """
@@ -119,8 +141,18 @@ class RollingTermStructure(RollingAnalytics):
 
         return forward_factor, dates
 
-    def variance_swap_z_score(self):
-        pass
+    def variance_swap_z_score(self, dte1: int = 30, dte2: int = 90, window: int = 10, r: float = 0):
+        term_premias, dates = self.variance_swap_term_premia(dte1, dte2, r, False)
+        term_premias = np.array(term_premias)
+        z_scores = []
+
+        for i in range(len(term_premias) - window):
+            rolling_mean = np.mean(term_premias[i:i + window])
+            rolling_std_dev = np.std(term_premias[i:i + window])
+            z_score = (term_premias[i + window] - rolling_mean) / rolling_std_dev
+            z_scores.append(z_score)
+
+        return z_scores, dates[window:]
 
     def atmf():
         pass
