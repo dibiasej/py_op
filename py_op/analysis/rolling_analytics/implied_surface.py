@@ -96,7 +96,14 @@ class RollingTermStructure(RollingAnalytics):
 
         return term_premias, dates
     
-    def variance_swap()
+    def variance_swap_forward_factor(self):
+        """
+        For this we do not need to construct the whole forward curve we can just use the basic formula to get var_swap_fwd_t2-t2 with var_swap t2 and var_swap t1
+        """
+        pass
+
+    def variance_swap_z_score(self):
+        pass
 
     def atmf():
         pass
