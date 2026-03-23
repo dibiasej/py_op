@@ -22,11 +22,12 @@ from py_op.calc_engine.vol_engine import interpolation_models
 from py_op.data.price_data import process_price_data
 
 from py_op.data.builders.option_chain_builder import create_chain, create_chain_series
-from py_op.data.builders.position_series_builder import BacktestBuilder
+from py_op.data.builders.position_series_builder import PositionSeriesBuilder
 from py_op.data.structures.position_info_data_structure import PortfolioInfo
 
 # for analytics I am thinking I want it to look like py_op.analytics.RollingTermStructure() in a notebook
 from . import analysis
+from py_op.analysis.position_analysis import backtest
 
 __all__ = [
     # Pricing modules
@@ -49,7 +50,8 @@ __all__ = [
     "BacktestBuilder",
     "PortfolioInfo",
     # analytics
-    "analysis"
+    "analysis",
+    "backtest"
 ]
 
 __version__ = "0.1.0"

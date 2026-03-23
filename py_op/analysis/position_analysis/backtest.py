@@ -1,12 +1,31 @@
+import numpy as np
 
 from py_op.data.structures.position_info_data_structure import PortfolioInfo, StockPositionInfo, OptionPositionInfo
 from py_op.data.builders.position_series_builder import PositionSeriesBuilder
 
 class Backtest:
 
-    def __init__(self, portfolio: PortfolioInfo, position_series_builder = PositionSeriesBuilder()):
-        self.portfolio: PortfolioInfo = portfolio
-        self.position_series_builder = position_series_builder
+    def __init__(self, start_date: str, end_date: str):
+        self.portfolio: PortfolioInfo = PortfolioInfo(start_date, end_date)
+        self.position_series_builder = PositionSeriesBuilder
 
-    def add_stock(self):
-        pass
+    def add_option(self, ticker: str, exp: str, strike: int = None, moneyness: float = None, exposure: str = "long", otype: str = "call", quantity: int = 1) -> None:
+        self.portfolio.add_option(ticker = ticker, exp = exp, strike = strike, moneyness = moneyness, exposure = exposure, otype = otype, quantity = quantity)
+
+    def add_stock(self, ticker: str, exposure: str = "long", quantity: int = 1) -> None:
+        self.portfolio.add_stock(ticker = ticker, exposure = exposure, quantity = quantity)
+
+    def calculate_pnl(self):
+        position_series = PositionSeriesBuilder(self.portfolio)
+        portfolio_data = position_series.get_positions()
+        pnl = 0
+        for key, value in portfolio_data.items():
+
+            if key[1] == "put" or key[1] == "call":
+                option_pos = np.array(value[0]) * 100
+                pnl += option_pos
+
+            else:
+                pnl += np.array(value[0])
+
+        return pnl
