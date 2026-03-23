@@ -2,10 +2,11 @@ import numpy as np
 
 #from data.price_data import get_close_prices
 from py_op.data.structures.position_info_data_structure import PortfolioInfo, StockPositionInfo, OptionPositionInfo
+from py_op.data.repositories.position_repository import BacktestRepository
 
-class BacktestBuilder:
+class PositionSeriesBuilder:
 
-    def __init__(self, portfolio: PortfolioInfo, repo) -> None:
+    def __init__(self, portfolio: PortfolioInfo, repo = BacktestRepository()) -> None:
         self.portfolio: PortfolioInfo = portfolio
         self.repo = repo
         self.portfolio_data = {}

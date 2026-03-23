@@ -2,7 +2,7 @@
 from py_op.global_variables import OPTION_DB_DIR
 from py_op.utils.db_utils import get_connection
 
-class BacktestRepository:
+class PositionSeriesRepository:
 
     def __init__(self):
         self.conn = get_connection(OPTION_DB_DIR)
