@@ -15,7 +15,7 @@ class Backtest:
     def add_stock(self, ticker: str, exposure: str = "long", quantity: int = 1) -> None:
         self.portfolio.add_stock(ticker = ticker, exposure = exposure, quantity = quantity)
 
-    def calculate_pnl(self):
+    def calculate_position_value(self):
         position_series = PositionSeriesBuilder(self.portfolio)
         portfolio_data = position_series.get_positions()
         pnl = 0
@@ -28,4 +28,9 @@ class Backtest:
             else:
                 pnl += np.array(value[0])
 
+        return pnl
+    
+    def calculate_pnl(self):
+        position_value = self.calculate_position_value()
+        pnl = position_value - position_value[0]
         return pnl
