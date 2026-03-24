@@ -11,7 +11,7 @@ class PositionSeriesBuilder:
         self.repo = repo
         self.portfolio_data = {}
 
-    def get_positions(self):
+    def get_positions(self, r: float = 0.04, q: float = 0):
 
         start_date = self.portfolio.start_date
         end_date = self.portfolio.end_date
@@ -53,6 +53,15 @@ class PositionSeriesBuilder:
                     #print(f"ticker = {ticker}, expiration={exp}, moneyness={moneyness}, option_type={otype}, start_date={start_date}, end_date={end_date}")
                     rows = self.repo.get_option_price_history_by_moneyness(ticker = ticker, expiration=exp, moneyness=moneyness, option_type=otype, start_date=start_date, end_date=end_date)
                     close_dates, mid_prices, strikes, dtes, close_prices, spot_prices = zip(*rows)
+                    mid_prices = np.array(mid_prices)
                     self.portfolio_data[(ticker, otype, moneyness, exp)] = (mid_prices * position.quantity, close_dates) if exposure == "long" else (-mid_prices * position.quantity, close_dates)
         
+                elif position.delta is not None:
+                    delta = position.delta
+                    data = self.repo.get_option_price_history_by_delta(ticker = ticker, expiration=exp, delta=delta, option_type=otype, start_date=start_date, end_date=end_date, r=r, q=q)
+                    close_dates, mid_prices, strikes, dtes, spots = zip(*data)
+                    mid_prices = np.array(mid_prices)
+                    self.portfolio_data[(ticker, otype, delta, exp)] = (mid_prices * position.quantity, close_dates) if exposure == "long" else (-mid_prices * position.quantity, close_dates)
+
+
         return self.portfolio_data
