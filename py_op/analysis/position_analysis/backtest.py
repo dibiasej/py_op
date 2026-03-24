@@ -7,10 +7,9 @@ class Backtest:
 
     def __init__(self, start_date: str, end_date: str):
         self.portfolio: PortfolioInfo = PortfolioInfo(start_date, end_date)
-        self.position_series_builder = PositionSeriesBuilder
 
-    def add_option(self, ticker: str, exp: str, strike: int = None, moneyness: float = None, delta: float = None, exposure: str = "long", otype: str = "call", quantity: int = 1) -> None:
-        self.portfolio.add_option(ticker = ticker, exp = exp, strike = strike, moneyness = moneyness, delta = delta, exposure = exposure, otype = otype, quantity = quantity)
+    def add_option(self, ticker: str, exp: str, strike: int = None, moneyness: float = None, delta: float = None, exposure: str = "long", otype: str = "call", quantity: int = 1, delta_hedged: bool = False) -> None:
+        self.portfolio.add_option(ticker = ticker, exp = exp, strike = strike, moneyness = moneyness, delta = delta, exposure = exposure, otype = otype, quantity = quantity, delta_hedged = delta_hedged)
 
     def add_stock(self, ticker: str, exposure: str = "long", quantity: int = 1) -> None:
         self.portfolio.add_stock(ticker = ticker, exposure = exposure, quantity = quantity)

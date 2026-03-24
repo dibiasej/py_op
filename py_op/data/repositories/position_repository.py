@@ -130,7 +130,6 @@ class PositionSeriesRepository:
     
     def get_option_price_history_by_delta(self, ticker: str, expiration: str, delta: float, option_type: str = "call", start_date: str = None, end_date: str = None, r = 0.04, q = 0):
         rows = self.get_option_price_history_across_expiration(ticker = ticker, expiration = expiration, option_type = option_type, start_date = start_date, end_date = end_date)
-        #close_dates, mid_prices, strikes, dtes, close_prices, spot_prices = zip(*rows)
         pos_data = {}
         skew_calc = SkewCalculator(self.iv_calculator)
 
@@ -150,17 +149,12 @@ class PositionSeriesRepository:
             pos_data[close_date]["close_prices"].append(close_price)
             pos_data[close_date]["spot_prices"].append(spot_price)
 
-        # dates = []
-        # mid_price_list = []
-        # strike_list = []
         data = []
         for key, value in pos_data.items():
             strikes = np.array(value["strikes"])
             mid_prices = np.array(value["mid_prices"])
             dte = value["dtes"][0]
             spot = value["spot_prices"][0]
-
-            #ivs = self.iv_calculator.calculate(mid_prices, spot, strikes, dte/365, otype = option_type)
             
             if option_type == "call":
                 ivs, new_strikes = skew_calc.calculate_call_skew(spot, mid_prices, strikes, dte/365, r = r, q = q)
@@ -172,12 +166,8 @@ class PositionSeriesRepository:
                 ivs, new_strikes = np.array(ivs), np.array(new_strikes)
                 deltas = AnalyticalDelta().calculate(spot, new_strikes, dte/365, ivs, r, q, otype=option_type)
 
-            # print(f"deltas: {deltas}")
-            # print(f"ivs: {ivs}")
             idx = np.argmin(np.abs(deltas - delta))
             data.append((key, float(mid_prices[idx]), float(new_strikes[idx]), dte, spot))
-            #close_dates, mid_prices, strikes, dtes, close_prices, spot_prices
-
 
         return data
 

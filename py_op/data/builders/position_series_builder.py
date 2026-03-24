@@ -3,6 +3,8 @@ import numpy as np
 #from data.price_data import get_close_prices
 from py_op.data.structures.position_info_data_structure import PortfolioInfo, StockPositionInfo, OptionPositionInfo
 from py_op.data.repositories.position_repository import PositionSeriesRepository
+from py_op.calc_engine.vol_engine.iv_calc import RootFinder
+from py_op.calc_engine.greeks.analytical_greeks import AnalyticalDelta
 
 class PositionSeriesBuilder:
 
@@ -10,6 +12,18 @@ class PositionSeriesBuilder:
         self.portfolio: PortfolioInfo = portfolio
         self.repo = repo
         self.portfolio_data = {}
+
+    def _delta_hedge_helper(self, market_prices, strikes, dtes, spot_prices, otype, r = 0.04, q = 0):
+        """
+        Note right now we only hedge using iv which is an issue because we may want to hedge with rv
+        """
+        deltas = []
+        for i in range(len(market_prices)):
+            iv = RootFinder().calculate(market_prices[i], spot_prices[i], strikes[i], dtes[i]/365, r=r, otype=otype, q=q)
+            delta = AnalyticalDelta().calculate(spot_prices[i], strikes[i], dtes[i]/365, iv, r=r, q=q, otype=otype)
+            deltas.append(delta)
+
+        return np.array(deltas)*100
 
     def get_positions(self, r: float = 0.04, q: float = 0):
 
@@ -59,9 +73,31 @@ class PositionSeriesBuilder:
                 elif position.delta is not None:
                     delta = position.delta
                     data = self.repo.get_option_price_history_by_delta(ticker = ticker, expiration=exp, delta=delta, option_type=otype, start_date=start_date, end_date=end_date, r=r, q=q)
-                    close_dates, mid_prices, strikes, dtes, spots = zip(*data)
+                    close_dates, mid_prices, strikes, dtes, spot_prices = zip(*data)
                     mid_prices = np.array(mid_prices)
                     self.portfolio_data[(ticker, otype, delta, exp)] = (mid_prices * position.quantity, close_dates) if exposure == "long" else (-mid_prices * position.quantity, close_dates)
+
+                if position.delta_hedged == True:
+
+                    deltas = self._delta_hedge_helper(mid_prices, strikes, dtes, spot_prices, otype, r=r, q=q)
+
+                    if position.exposure == "long" and otype == "put":
+                        delta_hedge = -deltas*spot_prices
+
+                    elif position.exposure == "long" and otype == "call":
+                        print("in long call")
+                        delta_hedge = -deltas*spot_prices
+
+                    else:
+                        delta_hedge = deltas*spot_prices
+                    
+                    #print(f"delta hedge: {delta_hedge}")
+                    print(f"delta hedge: {delta_hedge}")
+
+                    self.portfolio_data[(ticker, "delta hedge", None, exp)] = delta_hedge
+                    print(f"deltas: {deltas}")
+                    print(f"spot: {spot_prices}")
+                    print("\n")
 
 
         return self.portfolio_data
