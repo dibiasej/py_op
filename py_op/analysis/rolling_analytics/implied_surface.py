@@ -402,6 +402,13 @@ class RollingSkew(RollingAnalytics):
     def implied_skew_delta(self):
         pass
 
+    def implied_skew_constant_strike(self):
+        """
+        This method plot the rolling skew metric for two specific strikes over time eg 480 K put and 520 K call, over time.
+        This is true fixed strike skew unlike the Collin Bennet version, ie the strikes do not change over time.
+        """
+        pass
+
 class RollingKurtosis:
     pass
 
