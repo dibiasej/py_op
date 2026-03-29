@@ -96,27 +96,81 @@ class RollingGVV(RollingAnalytics):
 
         return implied_skews, dates
 
-    def implied_skew_delta(self):
+    def implied_skew_delta(self, dte: float, r: float = 0.04, weights: bool = False, put_delta: float = .1, call_delta: float = .1):
 
         dates, spots, _, _, _, skews, strikes_list = self._implied_parameter_helper(dte, r, weights)
         implied_skews = []
 
         for i in range(len(skews)):
             spot = spots[i]
-            skew = skews[i]
-            strikes = strikes_list[i]
+            skew = np.array(skews[i])
+            strikes = np.array(strikes_list[i])
+
+            deltas = np.where(strikes > spot, AnalyticalDelta().calculate(spot, strikes, dte/365, skew, r, q, otype = "call"), AnalyticalDelta().calculate(spot, strikes, dte/365, skew, r, q, otype = "put"))
+
+            idx_put  = np.abs(deltas - (1 - put_delta)).argmin()
+            idx_call = np.abs(deltas - (1 + call_delta)).argmin()
+
+            put_iv,  K_put  = float(skew[idx_put]),  float(strikes[idx_put])
+            call_iv, K_call = float(skew[idx_call]), float(strikes[idx_call])
+
+            denom = (K_put - K_call) / spot
+            implied_skews.append((put_iv - call_iv) / denom)
+
+        return implied_skews, dates
+    
+    def implied_skew_fixed_strike_moneyness(self, dte: float, r: float = 0.04, weights: bool = False, put_moneyness: float = .1, call_moneyness: float = .1):
+        """
+        We call it Fixed strike because this is the convention Collin Bennet uses in his book, we may change the name in the future
+        Use put_moneyness .1 and call 0 to get Collin Bennets exact definition
+        """
+        dates, spots, _, _, _, skews, strikes_list = self._implied_parameter_helper(dte, r, weights)
+        implied_skews = []
+
+        for i in range(len(skews)):
+            spot = spots[i]
+            skew = np.array(skews[i])
+            strikes = np.array(strikes_list[i])
             moneyness_list = np.array(strikes) / spot
 
             idx_put  = np.abs(moneyness_list - (1 - put_moneyness)).argmin()
             idx_call = np.abs(moneyness_list - (1 + call_moneyness)).argmin()
 
-            put_iv,  K_put  = float(skew[idx_put]),  float(strikes[idx_put])
-            call_iv, K_call = float(skew[idx_call]), float(strikes[idx_call])
-    
-            denom = (K_put - K_call) / spot
-            implied_skews.append((put_iv - call_iv) / denom)
+            deltas = np.where(strikes > spot, AnalyticalDelta().calculate(spot, strikes, dte/365, skew, r, q, otype = "call"), AnalyticalDelta().calculate(spot, strikes, dte/365, skew, r, q, otype = "put"))
+
+            idx_put  = np.abs(deltas - (1 - put_moneyness)).argmin()
+            idx_call = np.abs(deltas - (1 + call_moneyness)).argmin()
+
+            put_iv = float(skew[idx_put])
+            call_iv = float(skew[idx_call])
+
+            implied_skews.append(put_iv - call_iv)
 
         return implied_skews, dates
+    
+    def implied_skew_fixed_strike_delta(self, dte: float, r: float = 0.04, weights: bool = False, put_delta: float = .1, call_delta: float = .1):
+        dates, spots, _, _, _, skews, strikes_list = self._implied_parameter_helper(dte, r, weights)
+        implied_skews = []
+
+        for i in range(len(skews)):
+            spot = spots[i]
+            skew = np.array(skews[i])
+            strikes = np.array(strikes_list[i])
+
+            deltas = np.where(strikes > spot, AnalyticalDelta().calculate(spot, strikes, dte/365, skew, r, q, otype = "call"), AnalyticalDelta().calculate(spot, strikes, dte/365, skew, r, q, otype = "put"))
+
+            idx_put  = np.abs(deltas - (1 - put_delta)).argmin()
+            idx_call = np.abs(deltas - (1 + call_delta)).argmin()
+
+            put_iv  = float(skew[idx_put])
+            call_iv = float(skew[idx_call])
+
+            implied_skews.append(put_iv - call_iv)
+
+        return implied_skews, dates
+
+    def implied_skew_constant_strike(self):
+        pass
         
 
 class RollingHeston:
