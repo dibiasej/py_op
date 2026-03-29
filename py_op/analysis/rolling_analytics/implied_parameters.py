@@ -1,6 +1,64 @@
+import numpy as np
 
-class RollingGVV:
-    pass
+from py_op.data.builders.option_chain_builder import create_chain_series
+from py_op.calc_engine.vol_engine.iv_calc import RootFinder
+from py_op.calc_engine.vol_engine.interpolation_models import GVV
+from py_op.calc_engine.vol_engine.iv_calc import SkewCalculator
+
+
+class RollingAnalytics:
+
+    def __init__(self, ticker: str, start_date: str, end_date:str, steps: int = 1, iv_calc = RootFinder()) -> None:
+        self.ticker = ticker
+        self.start_date = start_date
+        self.end_date = end_date
+        self.steps = steps
+        self.iv_calc = iv_calc
+        self.chain_series = create_chain_series(ticker, start_date, end_date, steps=steps)
+
+class RollingGVV(RollingAnalytics):
+    # We might add term structure metrics as well eg term premia
+
+    def __init__(self, ticker: str, start_date: str, end_date: str, steps: int = 1, iv_calc = RootFinder()) -> None:
+        super().__init__(ticker, start_date, end_date, steps, iv_calc)
+        self.gvv = GVV()
+        self.skew_calculator = SkewCalculator()
+
+    def vol_level(self):
+        pass
+
+    def spot_vol_corr(self):
+        pass
+
+    def vol_vol(self):
+        pass
+
+    def skew_curve(self, dte: float, r: float = 0.04, weights: bool = False):
+
+        close_dates = []
+        strikes_list = []
+        ivs_list = []
+
+        for chain in self.chain_series:
+            close_date = chain.close_date
+            S = chain.S
+            put_prices, call_prices, strikes, actual_dtes = chain.get_equal_skew_prices(dte = dte, max_days_diff=20)
+            actual_dte = actual_dtes[0]
+            parity_ivs, new_strikes = zip(*self.skew_calculator.calculate_parity_skew_all_data(F, put_prices, call_prices, strikes, actual_dte/365))
+            F = S*np.exp(r * (actual_dte/365))
+            ivs, strikes = self.gvv.skew_polynomial_strike(F, new_strikes, parity_ivs, actual_dte, weights)
+
+            close_dates.append(close_date)
+            strikes_list.append(strikes)
+            ivs_list.append(ivs)
+
+        return close_dates, strikes_list, ivs_list
+
+    def implied_skew_moneyness(self):
+        pass
+
+    def implied_skew_delta(self):
+        pass
 
 class RollingHeston:
     pass
@@ -13,17 +71,3 @@ class RollingrBergomi:
 
 class RollingSVI:
     pass
-
-class RollingSkewModel:
-    """
-    This class will be similar to the RollingSkew class in implied_surface.py except metrics from this will be defined from some model
-    """
-    def skew_curve(self, parameterization):
-        """
-        This method gets the whole skew curve over time for a specified model
-        parameterization str: either strike, moneyness, log moneyness or delta
-        """
-        pass
-
-    def implied_skew_moneyness(self):
-        pass

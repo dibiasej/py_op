@@ -10,7 +10,7 @@ from py_op.utils.model_utils import GVVUtils
 IV Parameterizations: 
 - Fixed Strike - iv = f(K)
 - Floating Strike:
-    - moneyness iv = f(K/S)  (or use forward)
+    - moneyness iv = f(K/.S)  (or use forward)
     - log moneyness iv = f(ln(K/S))   (or use forward)
     - Normalized log moneyness iv = f(ln(K/S) / ATM IV*sqrt(T))   (ATM IV is our anchor vol, or use ATMF)
 """

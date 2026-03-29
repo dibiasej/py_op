@@ -65,7 +65,7 @@ def main():
     #conn = get_connection(OPTION_DB_DIR)
 
 
-    #time.sleep(60*60)
+    #time.sleep(60*60*2)
     load_data()
     check_tickers()
 
