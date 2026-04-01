@@ -147,7 +147,10 @@ class RollingGVV(RollingAnalytics):
 
         return implied_skews, dates
 
-    def implied_skew_constant_strike(self):
+    def implied_skew_constant_strike(self, delta, moneyness):
+        """"
+        Define an initial delta or moneyness at the first day of the period to set the strikes but these strikes do not change over time.
+        """
         pass
 
 class RollingHeston:

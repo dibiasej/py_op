@@ -9,7 +9,7 @@ from py_op.data.price_data.load_price_data import download_store_all_data
 from py_op.utils.db_utils import get_connection
 from py_op.global_variables import OPTION_DB_DIR, TICKERS, TODAY
 from py_op.data.repositories.option_chain_repository import OptionChainRepository
-#from services.snapshot_service import VolatilitySnapShotService2
+from py_op.data.price_data.transfer_price_data_pkl_to_database import build_spot_table_main
 from py_op.data.builders.option_chain_builder import create_chain
 from py_op.data.price_data.load_price_data import load_all_price_data
 
@@ -65,7 +65,7 @@ def main():
     #conn = get_connection(OPTION_DB_DIR)
 
 
-    #time.sleep(60*60*2)
+    # time.sleep(60*60*2)
     load_data()
     check_tickers()
 

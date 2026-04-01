@@ -412,7 +412,7 @@ class RollingSkew(RollingAnalytics):
 class RollingKurtosis:
     pass
 
-class RollingIV:
+class RollingIV(RollingAnalytics):
 
     def __init__(self, ticker: str, start_date: str, end_date: str, steps: int = 1, iv_calc = RootFinder()) -> None:
         super().__init__(ticker, start_date, end_date, steps, iv_calc)

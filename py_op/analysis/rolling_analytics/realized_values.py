@@ -1,6 +1,6 @@
 import numpy as np
 
-from py_op.data.price_data.process_price_data import get_close_prices
+from py_op.data.price_data.process_price_data import get_close_prices, get_log_rets
 from py_op.analysis.rolling_analytics.implied_values import constant_maturity_atm_iv
 
 """
@@ -93,3 +93,28 @@ def rolling_spot_vol_stats(ticker: str, start_date: str, end_date: str, dte: int
     stat_dates = aligned_dates[window:]
 
     return betas, covs, corrs, stat_dates
+
+def spx_vix_beta(start_date, end_date, window=21):
+    """
+    This is 100% correct it matches the image from jaredhstocks tweet. When we imporve on the rolling_spot_vol_stats function we can use this to test against.
+    This function pulls vix and spx log ret data and calculates a rolling beta
+    """
+    vix_prices, vix_dates = get_close_prices("^vix", start_date, end_date)
+    vix_prices = vix_prices/100
+    spx_log_rets, spx_dates = get_log_rets("^SPX", start_date, end_date)
+    vix_changes = np.array(vix_prices)[1:] - np.array(vix_prices)[:-1]
+    vix_changes = np.asarray(vix_changes, dtype=float)
+
+    if len(spx_log_rets) != len(vix_changes):
+        raise ValueError("spot_log_rets and vol_changes must have same length")
+
+    beta = np.full(len(spx_log_rets), np.nan)
+
+    for i in range(window - 1, len(spx_log_rets)):
+        r = spx_log_rets[i - window + 1:i + 1]
+        dv = vix_changes[i - window + 1:i + 1]
+
+        denom = np.sum(r**2)
+        beta[i] = np.sum(r * dv) / denom
+
+    return beta, spx_dates[1:]
