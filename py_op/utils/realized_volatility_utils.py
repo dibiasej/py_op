@@ -1,6 +1,6 @@
 import datetime as dt
 
-from data.price_data import process_price_data
+from py_op.data.price_data import process_price_data
 
 MARKET_HOLIDAYS: list[str] = ["2024-01-01", "2024-01-15", "2024-02-19", "2024-03-29", "2024-05-27", "2024-06-19", "2024-07-04", "2024-08-02", "2024-11-28", "2024-12-25"]
 

@@ -66,8 +66,29 @@ def rolling_realized_skewness(ticker: str, start_date: str, end_date: str, reali
 
     return skews[::-1], dates[length_int - 1:]
 
-def rolling_realized_kurtosis():
-    pass
+def rolling_realized_kurtosis(ticker: str, start_date: str, end_date: str, realized_volatility_period: str = "M", freq: str = "D"):
+
+    length_int = rv_utils.realized_volatility_period_length(realized_volatility_period, freq)
+
+    log_rets, dates = get_log_rets(ticker, start=start_date, end=end_date, freq=freq)
+    log_rets = np.asarray(log_rets[::-1], dtype=float)
+
+    kurtosis_vals = []
+
+    for i in range(len(log_rets) - length_int + 1):
+        x = log_rets[i:i + length_int]
+
+        n = len(x)
+        x_bar = np.mean(x)
+        sigma = np.sqrt(np.sum((x - x_bar) ** 2) / n)
+
+        if sigma == 0:
+            kurtosis_vals.append(np.nan)
+        else:
+            fourth_moment = np.sum((x - x_bar) ** 4) / n
+            kurtosis_vals.append(fourth_moment / (sigma ** 4))
+
+    return kurtosis_vals[::-1], dates[length_int - 1:]
 
 def rolling_spot_atm_iv_stats(ticker: str, start_date: str, end_date: str, dte: int, window: int = 30, intercept: bool = False, eps: float = 1e-12):
     """
