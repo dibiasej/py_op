@@ -16,7 +16,7 @@ TICKERS: list[str] = ["SPY", "QQQ", "TLT", "IEF", "SHY", "HYG", "CMBS", "GLD", "
                 'AFRM', 'ROKU', 'PEP', 'U', 'TGT', 'SNOW', 'SHOP', 'CMG', 'LULU', 'LMT', 'MS', 'NOW', 'LYFT', 'NKE', 'CAT',
                 'UNH', 'ASML', 'GM', 'TSM', 'KOLD', 'AXP', 'EWZ', 'SCHW', 'SBUX', 'MCD', 'V', 'FDX', 'PINS', 'GE', 'DAL',
                 'ABBV', 'MA', 'F', 'VZ', 'ULTA', 'Z', 'RCL', 'SPOT', 'CVS', 'AAL', 'CCL', 'DASH', 'T', 'BLK', 'DPZ', 'EBAY',
-                'TJX', '^NDX', '^SPX', '^RUT', "^VIX3M", "^VIX6M", "^VVIX", "^SKEW", 'TIP', 'MBB', "HON", "UPS", "DE", "CME", "ICE", "AMGN", "HUM", "GILD", "COP",
+                'TJX', '^NDX', '^SPX', '^RUT', "^GAMMA", "^VIX3M", "^VIX6M", "^VVIX", "^SKEW", 'TIP', 'MBB', "HON", "UPS", "DE", "CME", "ICE", "AMGN", "HUM", "GILD", "COP",
                 "SLB", "HAL", "LVS", "MGM", "RIOT", "MSTR", "AIG", "PG", "LOW", "CSCO", "QCOM", "MU", "AMAT", "UUP", "UDN", "FXE",
                 "FXB", "FXY", "JNK", "AGG", "UNG", "USO", "PPLT", "PALL", "CORN", "SOYB", "WEAT"]
 

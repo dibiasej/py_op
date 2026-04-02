@@ -118,3 +118,27 @@ def spx_vix_beta(start_date, end_date, window=21):
         beta[i] = np.sum(r * dv) / denom
 
     return beta, spx_dates[1:]
+
+def vix_vvix_beta(start_date, end_date, window=21):
+    vix_prices, vix_dates = get_close_prices("^vix", start_date, end_date)
+    vvix_prices, vvix_dates = get_close_prices("^VVIX", start_date, end_date)
+
+    vix_prices = np.asarray(vix_prices, dtype=float) / 100
+    vvix_prices = np.asarray(vvix_prices, dtype=float) / 100
+
+    vix_changes = vix_prices[1:] - vix_prices[:-1]
+    vvix_changes = vvix_prices[1:] - vvix_prices[:-1]
+
+    if len(vix_changes) != len(vvix_changes):
+        raise ValueError("vix_changes and vvix_changes must have same length")
+
+    out = np.full(len(vix_changes), np.nan)
+
+    for i in range(window - 1, len(vix_changes)):
+        dvix = vix_changes[i - window + 1:i + 1]
+        dvvix = vvix_changes[i - window + 1:i + 1]
+
+        denom = np.sum(dvix**2)
+        out[i] = np.sum(dvix * dvvix) / denom
+
+    return out, vix_dates[1:]
