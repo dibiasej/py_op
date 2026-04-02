@@ -3,6 +3,7 @@ import numpy as np
 from py_op.data.price_data.process_price_data import get_close_prices, get_log_rets
 from py_op.analysis.rolling_analytics.implied_surface import RollingVolatility
 from py_op.analysis.rolling_analytics.realized_volatility import get_realized_vol_strategy
+from py_op.utils import realized_volatility_utils as rv_utils
 
 """
 This module calculates all our realized metrics.
@@ -41,9 +42,32 @@ def realized_vol_of_vol(sig: np.ndarray[float], largest_lag: int):
     return nu
 
 def rolling_realized_volatility(ticker: str, start: str, end: str, realized_vol_strategy: str = "close_to_close", realized_volatility_period: str = "M", freq: str = "D"):
-    rvol, dates =  get_realized_vol_strategy(realized_vol_strategy).calculate(ticker, start, end)
+    rvol, dates =  get_realized_vol_strategy(realized_vol_strategy).calculate(ticker, start, end, realized_volatility_period, freq)
     return rvol, dates
 
+def rolling_realized_skewness(ticker: str, start_date: str, end_date: str, realized_volatility_period: str = "M", freq: str = "D"):
+    length_int = rv_utils.realized_volatility_period_length(realized_volatility_period, freq)
+    log_rets, dates = get_log_rets(ticker, start=start_date, end=end_date, freq=freq)
+
+
+    skews = []
+    for i in range(len(log_rets) - length_int + 1):
+        x = log_rets[i:i + length_int]
+
+        n = len(x)
+        x_bar = np.mean(x)
+        sigma = np.sqrt(np.sum((x - x_bar) ** 2) / n)
+
+        if sigma == 0:
+            skews.append(np.nan)
+        else:
+            third_moment = np.sum((x - x_bar) ** 3) / n
+            skews.append(third_moment / sigma**3)
+
+    return skews[::-1], dates[length_int - 1:]
+
+def rolling_realized_kurtosis():
+    pass
 
 def rolling_spot_atm_iv_stats(ticker: str, start_date: str, end_date: str, dte: int, window: int = 30, intercept: bool = False, eps: float = 1e-12):
     """
