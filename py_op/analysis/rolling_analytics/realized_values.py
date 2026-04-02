@@ -2,6 +2,7 @@ import numpy as np
 
 from py_op.data.price_data.process_price_data import get_close_prices, get_log_rets
 from py_op.analysis.rolling_analytics.implied_surface import RollingVolatility
+from py_op.analysis.rolling_analytics.realized_volatility import get_realized_vol_strategy
 
 """
 This module calculates all our realized metrics.
@@ -39,6 +40,10 @@ def realized_vol_of_vol(sig: np.ndarray[float], largest_lag: int):
 
     return nu
 
+def rolling_realized_volatility(ticker: str, start: str, end: str, realized_vol_strategy: str = "close_to_close", realized_volatility_period: str = "M", freq: str = "D"):
+    rvol, dates =  get_realized_vol_strategy(realized_vol_strategy).calculate(ticker, start, end)
+    return rvol, dates
+
 
 def rolling_spot_atm_iv_stats(ticker: str, start_date: str, end_date: str, dte: int, window: int = 30, intercept: bool = False, eps: float = 1e-12):
     """
@@ -46,22 +51,11 @@ def rolling_spot_atm_iv_stats(ticker: str, start_date: str, end_date: str, dte: 
     In the future we might turn this to class or strategy pattern similar to RealizedVol but for now this works very well.
     This realized spot floating strike vol
     """
-    ivs, iv_dates = RollingVolatility(ticker, start_date, end_date).constant_maturity_atm_iv(dte)
-    spot_prices, spot_dates = get_close_prices(ticker, start_date, end_date)
-    spot_map = dict(zip(spot_dates, spot_prices))
+    ivs, iv_dates, spot_prices = RollingVolatility(ticker, start_date, end_date).constant_maturity_atm_iv(dte)
+    ivs, spot_prices = np.array(ivs), np.array(spot_prices)
 
-    aligned_dates, aligned_spots, aligned_ivs = [], [], []
-    for d, iv in zip(iv_dates, ivs):
-        if d in spot_map and iv is not None and not np.isnan(iv):
-            aligned_dates.append(d)
-            aligned_spots.append(spot_map[d])
-            aligned_ivs.append(iv)
-
-    aligned_spots = np.asarray(aligned_spots, dtype=float)
-    aligned_ivs   = np.asarray(aligned_ivs, dtype=float)
-
-    returns = np.log(aligned_spots[1:] / aligned_spots[:-1])
-    iv_changes = aligned_ivs[1:] - aligned_ivs[:-1]
+    returns = np.log(spot_prices[1:] / spot_prices[:-1])
+    iv_changes = ivs[1:] - ivs[:-1]
 
     betas, covs, corrs = [], [], []
 
@@ -89,13 +83,42 @@ def rolling_spot_atm_iv_stats(ticker: str, start_date: str, end_date: str, dte: 
     covs  = np.asarray(covs)*252
     corrs = np.asarray(corrs)
 
-    # window-end dates (returns start at aligned_dates[1])
-    stat_dates = aligned_dates[window:]
+    return betas, covs, corrs, iv_dates[window:]
 
-    return betas, covs, corrs, stat_dates
+def rolling_spot_var_swap_stats(ticker: str, start_date: str, end_date: str, dte: int, window: int = 30, intercept: bool = False, r: float = 0, eps: float = 1e-12):
+    ivs, iv_dates, spot_prices = RollingVolatility(ticker, start_date, end_date).constant_maturity_variance_swap(dte, r)
+    ivs, spot_prices = np.array(ivs), np.array(spot_prices)
 
-def rolling_spot_var_swap_stats(ticker: str, start_date: str, end_date: str, dte: int, window: int = 30, intercept: bool = False, eps: float = 1e-12):
+    returns = np.log(spot_prices[1:] / spot_prices[:-1])
+    iv_changes = ivs[1:] - ivs[:-1]
 
+    betas, covs, corrs = [], [], []
+
+    for i in range(len(returns) - window + 1):
+        r = returns[i:i+window]
+        v = iv_changes[i:i+window]
+
+        if intercept:
+            r = r - r.mean()
+            v = v - v.mean()
+
+        rr = np.sum(r * r)
+        vv = np.sum(v * v)
+        rv = np.sum(r * v)
+
+        beta = rv / (rr + eps)
+        cov  = rv / window
+        corr = rv / (np.sqrt(rr * vv) + eps)
+
+        betas.append(beta)
+        covs.append(cov)
+        corrs.append(corr)
+
+    betas = np.asarray(betas)
+    covs  = np.asarray(covs)*252
+    corrs = np.asarray(corrs)
+
+    return betas, covs, corrs, iv_dates[window:]
 
 def spx_vix_beta(start_date, end_date, window=21):
     """

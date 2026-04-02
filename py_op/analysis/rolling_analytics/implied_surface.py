@@ -424,7 +424,7 @@ class RollingVolatility(RollingAnalytics):
         We will make two other functions one that gets atm put iv and one that gets atm call iv.
         We should add max_days_diff = 0
         """
-        ivs, dates = [], []
+        ivs, dates, spots = [], [], []
         t_target = target_dte / 365
 
         for chain in self.chain_series:
@@ -432,6 +432,7 @@ class RollingVolatility(RollingAnalytics):
             dte_lo, dte_hi = find_bracketing_dtes(dte_list, target_dte)
 
             S = chain.S
+            spots.append(S)
 
             # guard: if chain has no usable DTEs
             if dte_lo is None and dte_hi is None:
@@ -472,4 +473,40 @@ class RollingVolatility(RollingAnalytics):
             ivs.append(iv)
             dates.append(chain.close_date)
 
-        return ivs, dates
+        return ivs, dates, spots
+    
+    def constant_maturity_variance_swap(self, target_dte: int, r: float = 0):
+
+        var_swaps, dates, spots = [], [], []
+
+        for chain in self.chain_series:
+            S = chain.S
+            spots.append(S)
+            dates.append(chain.close_date)
+            dte_list = chain.get_common_dtes()
+            dte_lo, dte_hi = find_bracketing_dtes(dte_list, target_dte)
+
+            if dte_lo is None and dte_hi is None:
+                return None
+
+            if dte_hi is None:
+                put_prices, call_prices, strikes, actual_dtes = chain.get_equal_skew_prices(dte=dte_lo, max_days_diff=0)
+                interpolated_var_swap = variance_swap_approximation(S, put_prices, call_prices, strikes, actual_dtes[0], r)
+
+            else:
+
+                put_prices_lo, call_prices_lo, strikes_lo, actual_dtes_lo = chain.get_equal_skew_prices(dte=dte_lo, max_days_diff=0)
+                put_prices_hi, call_prices_hi, strikes_hi, actual_dtes_hi = chain.get_equal_skew_prices(dte=dte_hi, max_days_diff=0)
+
+                var_lo = variance_swap_approximation(S, put_prices_lo, call_prices_lo, strikes_lo, actual_dtes_lo[0], r)
+                var_hi = variance_swap_approximation(S, put_prices_hi, call_prices_hi, strikes_hi, actual_dtes_hi[0], r)
+
+                T_lo = actual_dtes_lo[0] / 365
+                T_hi = actual_dtes_hi[0] / 365
+                T_target = target_dte / 365
+
+                interpolated_var_swap = linear_interpolated_iv_v1(var_lo, var_hi, T_lo, T_hi, T_target)
+
+            var_swaps.append(interpolated_var_swap)
+
+        return var_swaps, dates, spots
