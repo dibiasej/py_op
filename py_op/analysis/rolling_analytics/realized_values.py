@@ -1,7 +1,7 @@
 import numpy as np
 
 from py_op.data.price_data.process_price_data import get_close_prices, get_log_rets
-from py_op.analysis.rolling_analytics.implied_values import constant_maturity_atm_iv
+from py_op.analysis.rolling_analytics.implied_surface import RollingVolatility
 
 """
 This module calculates all our realized metrics.
@@ -40,13 +40,13 @@ def realized_vol_of_vol(sig: np.ndarray[float], largest_lag: int):
     return nu
 
 
-def rolling_spot_vol_stats(ticker: str, start_date: str, end_date: str, dte: int, window: int = 30, intercept: bool = False, eps: float = 1e-12):
+def rolling_spot_atm_iv_stats(ticker: str, start_date: str, end_date: str, dte: int, window: int = 30, intercept: bool = False, eps: float = 1e-12):
     """
     I Tested multiple versions of spot vol rolling statistics (Benn, Junsu, Euan) and they all give me the same values. This is the best version of the code.
     In the future we might turn this to class or strategy pattern similar to RealizedVol but for now this works very well.
     This realized spot floating strike vol
     """
-    ivs, iv_dates = constant_maturity_atm_iv(ticker, start_date, end_date, dte)
+    ivs, iv_dates = RollingVolatility(ticker, start_date, end_date).constant_maturity_atm_iv(dte)
     spot_prices, spot_dates = get_close_prices(ticker, start_date, end_date)
     spot_map = dict(zip(spot_dates, spot_prices))
 
@@ -93,6 +93,9 @@ def rolling_spot_vol_stats(ticker: str, start_date: str, end_date: str, dte: int
     stat_dates = aligned_dates[window:]
 
     return betas, covs, corrs, stat_dates
+
+def rolling_spot_var_swap_stats(ticker: str, start_date: str, end_date: str, dte: int, window: int = 30, intercept: bool = False, eps: float = 1e-12):
+
 
 def spx_vix_beta(start_date, end_date, window=21):
     """
