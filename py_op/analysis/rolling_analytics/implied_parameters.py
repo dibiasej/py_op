@@ -76,7 +76,7 @@ class RollingGVV(RollingAnalytics):
                 idx_call = np.abs(moneyness_list - (1 + call_moneyness)).argmin()
 
             elif mode == "delta":
-                deltas = np.where(strikes > spot, AnalyticalDelta().calculate(spot, strikes, dte/365, skew, r, q, otype = "call"), AnalyticalDelta().calculate(spot, strikes, dte/365, skew, r, q, otype = "put"))
+                deltas = np.where(strikes > spot, self.delta_calc.calculate(spot, strikes, dte/365, skew, r, q, otype = "call"), self.delta_calc.calculate(spot, strikes, dte/365, skew, r, q, otype = "put"))
 
                 idx_put  = np.abs(deltas - put_delta).argmin()
                 idx_call = np.abs(deltas - call_delta).argmin()
