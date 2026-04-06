@@ -159,23 +159,24 @@ class RollingTermStructure(RollingAnalytics):
     def atmf():
         pass
 
-import numpy as np
+class RollingSkew(RollingAnalytics):
+    """
+    We need to work on the methods involved with delta in this class, we should try using skew_calculator.equal_parity_ivs, instead of otm ivs
+    """
 
-class RollingSkewNew(RollingAnalytics):
-
-    def __init__(self, ticker: str, start_date: str, end_date: str,
-                 steps: int = 1, iv_calc=RootFinder()) -> None:
+    def __init__(self, ticker: str, start_date: str, end_date: str, steps: int = 1, iv_calc=RootFinder(), parity_iv_relation = False, use_otm_prices = False) -> None:
+        
+        self.parity_iv_relation = parity_iv_relation
+        self.use_otm_prices = use_otm_prices
+        
+        if self.use_otm_prices == True and self.parity_iv_relation == True:
+            raise ValueError("Cannot use otm prices flag with equal iv skew flag")
+        
         super().__init__(ticker, start_date, end_date, steps, iv_calc)
         self.delta_calc = AnalyticalDelta()
         self.skew_calculator = SkewCalculator()
 
-    def _select_skew_points(self, target_dte: int, max_days_diff: int = 20,
-                            r: float = 0.04, q: float = 0.0,
-                            mode: str = "moneyness",
-                            put_moneyness: float = 0.1,
-                            call_moneyness: float = 0.1,
-                            put_delta: float = -0.25,
-                            call_delta: float = 0.25):
+    def _select_skew_points(self, target_dte: int, max_days_diff: int = 20, r: float = 0.04, q: float = 0.0, mode: str = "moneyness", put_moneyness: float = 0.1, call_moneyness: float = 0.1, put_delta: float = -0.25, call_delta: float = 0.25):
         """
         Selects the put/call IV points used to define skew from the raw market IV curve.
         """
@@ -185,7 +186,15 @@ class RollingSkewNew(RollingAnalytics):
             S = chain.S
             date = chain.close_date
 
-            otm_prices, strikes, actual_dte = chain.get_otm_skew_prices(dte=target_dte, max_days_diff=max_days_diff)
+            if self.use_otm_prices == True:
+                otm_prices, strikes, actual_dte = chain.get_otm_skew_prices(dte=target_dte, max_days_diff=max_days_diff)
+                #put_prices, call_prices = np.array([price for price, K in zip(otm_prices, strikes) if K < S else 0]), np.array([price for price, K in zip(otm_prices, strikes) if K > S else 0]) 
+                put_prices, call_prices = otm_prices, otm_prices
+
+            else:
+
+                put_prices, call_prices, strikes, actual_dtes = chain.get_equal_skew_prices(dte=target_dte, max_days_diff=max_days_diff)
+                actual_dte = actual_dtes[0]
 
             strikes = np.array(strikes, dtype=float)
 
@@ -195,43 +204,54 @@ class RollingSkewNew(RollingAnalytics):
                 idx_put  = np.abs(moneyness_arr - (1 - put_moneyness)).argmin()
                 idx_call = np.abs(moneyness_arr - (1 + call_moneyness)).argmin()
 
-                put_price,  K_put  = float(otm_prices[idx_put]),  float(strikes[idx_put])
-                call_price, K_call = float(otm_prices[idx_call]), float(strikes[idx_call])
-                put_iv  = self.iv_calc.calculate(put_price,  S, K_put,  actual_dte/365, otype="put")
-                call_iv = self.iv_calc.calculate(call_price, S, K_call, actual_dte/365, otype="call")
+                put_price,  K_put  = float(put_prices[idx_put]),  float(strikes[idx_put])
+                put_price_for_call,  K_put_for_call  = float(put_prices[idx_call]),  float(strikes[idx_call])
+
+                call_price, K_call = float(call_prices[idx_call]), float(strikes[idx_call])
+                call_price_for_put, K_call_for_put = float(call_prices[idx_put]), float(strikes[idx_put])
+
+                if self.parity_iv_relation == True:
+
+                    put_i_rate = implied_rate(call_price_for_put, put_price, S, K_put, actual_dte/365)
+                    call_i_rate = implied_rate(call_price, put_price_for_call, S, K_call, actual_dte/365)
+
+                    put_iv  = self.iv_calc.calculate(put_price,  S, K_put,  actual_dte/365, otype="put", r = put_i_rate)
+                    call_iv = self.iv_calc.calculate(call_price, S, K_call, actual_dte/365, otype="call", r = call_i_rate)
+
+                else:
+
+                    put_iv  = self.iv_calc.calculate(put_price,  S, K_put,  actual_dte/365, otype="put")
+                    call_iv = self.iv_calc.calculate(call_price, S, K_call, actual_dte/365, otype="call")
 
             elif mode == "delta":
-                otm_ivs, new_strikes = self.skew_calculator.calculate_otm_skew(S, otm_prices, strikes, actual_dte/365, r, q)
-                otm_ivs, new_strikes = np.array(otm_ivs), np.array(new_strikes)
-                deltas = np.where(
-                    new_strikes > S,
-                    self.delta_calc.calculate(S, new_strikes, actual_dte/365, otm_ivs, r, q, otype="call"),
-                    self.delta_calc.calculate(S, new_strikes, actual_dte/365, otm_ivs, r, q, otype="put")
-                )
+
+                if self.use_otm_prices == True:
+                    ivs, new_strikes = self.skew_calculator.calculate_otm_skew(S, otm_prices, strikes, actual_dte/365, r, q)
+                    ivs, new_strikes = np.array(ivs), np.array(new_strikes)
+
+                    deltas = np.where(strikes > S, self.delta_calc.calculate(S, new_strikes, actual_dte/365, ivs, r, q, otype="call"), self.delta_calc.calculate(S, new_strikes, actual_dte/365, ivs, r, q, otype="put"))
+
+                else:
+                    ivs, new_strikes = zip(*self.skew_calculator.calculate_parity_skew(S, put_prices, call_prices, strikes, actual_dte/365, r, q))
+                    ivs, new_strikes = np.array(ivs), np.array(new_strikes)
+
+                    deltas = np.where(new_strikes > S, self.delta_calc.calculate(S, new_strikes, actual_dte/365, ivs, r, q, otype="call"), self.delta_calc.calculate(S, new_strikes, actual_dte/365, ivs, r, q, otype="put"))
 
                 idx_put  = np.abs(deltas - put_delta).argmin()
                 idx_call = np.abs(deltas - call_delta).argmin()
 
-                put_iv,  K_put  = float(otm_ivs[idx_put]),  float(new_strikes[idx_put])
-                call_iv, K_call = float(otm_ivs[idx_call]), float(new_strikes[idx_call])
+                put_iv,  K_put  = float(ivs[idx_put]),  float(new_strikes[idx_put])
+                call_iv, K_call = float(ivs[idx_call]), float(new_strikes[idx_call])
 
             else:
                 raise ValueError("mode must be 'moneyness' or 'delta'")
 
             yield put_iv, call_iv, K_put, K_call, S, date
 
-    def implied_skew_moneyness(self, target_dte: int, max_days_diff: int = 20,
-                               put_moneyness: float = 0.1,
-                               call_moneyness: float = 0.1):
+    def implied_skew_moneyness(self, target_dte: int, max_days_diff: int = 20, put_moneyness: float = 0.1, call_moneyness: float = 0.1):
         implied_skews, dates = [], []
 
-        for put_iv, call_iv, K_put, K_call, S, date in self._select_skew_points(
-            target_dte,
-            max_days_diff=max_days_diff,
-            mode="moneyness",
-            put_moneyness=put_moneyness,
-            call_moneyness=call_moneyness
-        ):
+        for put_iv, call_iv, K_put, K_call, S, date in self._select_skew_points(target_dte, max_days_diff=max_days_diff, mode="moneyness", put_moneyness=put_moneyness, call_moneyness=call_moneyness):
             
             dates.append(date)
             denom = (K_put - K_call) / S
@@ -239,59 +259,30 @@ class RollingSkewNew(RollingAnalytics):
 
         return implied_skews, dates
 
-    def implied_skew_fixed_strike_moneyness(self, target_dte: int, max_days_diff: int = 20,
-                                            put_moneyness: float = 0.1,
-                                            call_moneyness: float = 0.1):
+    def implied_skew_fixed_strike_moneyness(self, target_dte: int, max_days_diff: int = 20, put_moneyness: float = 0.1, call_moneyness: float = 0.1):
         implied_skews, dates = [], []
 
-        for put_iv, call_iv, _, _, _, date in self._select_skew_points(
-            target_dte,
-            max_days_diff=max_days_diff,
-            mode="moneyness",
-            put_moneyness=put_moneyness,
-            call_moneyness=call_moneyness
-        ):
+        for put_iv, call_iv, _, _, _, date in self._select_skew_points(target_dte, max_days_diff=max_days_diff, mode="moneyness", put_moneyness=put_moneyness, call_moneyness=call_moneyness):
             dates.append(date)
             implied_skews.append(put_iv - call_iv)
 
         return implied_skews, dates
 
-    def implied_skew_delta(self, target_dte: int, max_days_diff: int = 20,
-                           r: float = 0.04, q: float = 0.0,
-                           put_delta: float = -0.25,
-                           call_delta: float = 0.25):
+    def implied_skew_delta(self, target_dte: int, max_days_diff: int = 20, r: float = 0.04, q: float = 0.0, put_delta: float = -0.25, call_delta: float = 0.25):
         implied_skews, dates = [], []
 
-        for put_iv, call_iv, K_put, K_call, spot, date in self._select_skew_points(
-            target_dte,
-            max_days_diff=max_days_diff,
-            r=r,
-            q=q,
-            mode="delta",
-            put_delta=put_delta,
-            call_delta=call_delta
-        ):
+        for put_iv, call_iv, K_put, K_call, spot, date in self._select_skew_points(target_dte, max_days_diff=max_days_diff, r=r, q=q, mode="delta", put_delta=put_delta, call_delta=call_delta):
             dates.append(date)
             denom = (K_put - K_call) / spot
             implied_skews.append((put_iv - call_iv) / denom)
 
         return implied_skews, dates
 
-    def implied_skew_fixed_strike_delta(self, target_dte: int, max_days_diff: int = 20,
-                                        r: float = 0.04, q: float = 0.0,
-                                        put_delta: float = -0.25,
-                                        call_delta: float = 0.25):
+    def implied_skew_fixed_strike_delta(self, target_dte: int, max_days_diff: int = 20, r: float = 0.04, q: float = 0.0, put_delta: float = -0.25, call_delta: float = 0.25):
         implied_skews, dates = [], []
 
-        for put_iv, call_iv, _, _, _, date in self._select_skew_points(
-            target_dte,
-            max_days_diff=max_days_diff,
-            r=r,
-            q=q,
-            mode="delta",
-            put_delta=put_delta,
-            call_delta=call_delta
-        ):
+        for put_iv, call_iv, _, _, _, date in self._select_skew_points(target_dte, max_days_diff=max_days_diff, r=r, q=q, mode="delta", put_delta=put_delta, call_delta=call_delta):
+
             dates.append(date)
             implied_skews.append(put_iv - call_iv)
 
@@ -304,8 +295,117 @@ class RollingSkewNew(RollingAnalytics):
         """
         pass
 
+class RollingKurtosis:
+    pass
 
-class RollingSkew(RollingAnalytics):
+class RollingVolatility(RollingAnalytics):
+
+    def __init__(self, ticker: str, start_date: str, end_date: str, steps: int = 1, iv_calc = RootFinder()) -> None:
+        super().__init__(ticker, start_date, end_date, steps, iv_calc)
+
+    def constant_maturity_atm_iv(self, target_dte: int, q: float = 0.0):
+        """
+        This function uses linear interpolation to get a atm constant matuity iv.
+        Right now it only gets put iv, put it uses an implied rate so they should be equal, but in the future we will test for call iv.
+        We will make two other functions one that gets atm put iv and one that gets atm call iv.
+        We should add max_days_diff = 0
+        """
+        ivs, dates, spots = [], [], []
+        t_target = target_dte / 365
+
+        for chain in self.chain_series:
+            dte_list = chain.get_common_dtes()
+            dte_lo, dte_hi = find_bracketing_dtes(dte_list, target_dte)
+
+            S = chain.S
+            spots.append(S)
+
+            # guard: if chain has no usable DTEs
+            if dte_lo is None and dte_hi is None:
+                continue
+
+            # exact match or clamped
+            if dte_hi is None:
+
+                call = chain.get_option(S, otype="call", dte=dte_lo, max_days_diff = 0)
+                put  = chain.get_option(S, otype="put",  dte=dte_lo, max_days_diff = 0)
+
+                T = put.dte / 365  # use the contract's DTE to be consistent with your objects
+                i_rate = implied_rate(call.price, put.price, S, put.strike, T)
+
+                iv = self.iv_calc.calculate(put.price, S, put.strike, T, r=i_rate, otype="put", q=q)
+
+            # interpolate between two expiries
+            else:
+
+                call_lo = chain.get_option(S, otype="call", dte=dte_lo, max_days_diff = 0)
+                put_lo = chain.get_option(S, otype="put", dte=dte_lo, max_days_diff = 0)
+
+                call_hi = chain.get_option(S, otype="call", dte=dte_hi, max_days_diff = 0)
+                put_hi = chain.get_option(S, otype="put", dte=dte_hi, max_days_diff = 0)
+
+                T1 = put_lo.dte / 365
+                T2 = put_hi.dte / 365
+                i_rate1 = implied_rate(call_lo.price, put_lo.price, S, put_lo.strike, T1)
+                i_rate2 = implied_rate(call_hi.price, put_hi.price, S, put_hi.strike, T2)
+
+                iv1 = self.iv_calc.calculate(put_lo.price, S, put_lo.strike, T1, r=i_rate1, otype="put", q=q)
+                iv2 = self.iv_calc.calculate(put_hi.price, S, put_hi.strike, T2, r=i_rate2, otype="put", q=q)
+
+                t1 = dte_lo / 365
+                t2 = dte_hi / 365
+                iv = linear_interpolated_iv_v1(iv1, iv2, t1, t2, t_target)
+
+            ivs.append(iv)
+            dates.append(chain.close_date)
+
+        return ivs, dates, spots
+    
+    def constant_maturity_variance_swap(self, target_dte: int, r: float = 0):
+
+        var_swaps, dates, spots = [], [], []
+
+        for chain in self.chain_series:
+            S = chain.S
+            spots.append(S)
+            dates.append(chain.close_date)
+            dte_list = chain.get_common_dtes()
+            dte_lo, dte_hi = find_bracketing_dtes(dte_list, target_dte)
+
+            if dte_lo is None and dte_hi is None:
+                return None
+
+            if dte_hi is None:
+                put_prices, call_prices, strikes, actual_dtes = chain.get_equal_skew_prices(dte=dte_lo, max_days_diff=0)
+                interpolated_var_swap = variance_swap_approximation(S, put_prices, call_prices, strikes, actual_dtes[0], r)
+
+            else:
+
+                put_prices_lo, call_prices_lo, strikes_lo, actual_dtes_lo = chain.get_equal_skew_prices(dte=dte_lo, max_days_diff=0)
+                put_prices_hi, call_prices_hi, strikes_hi, actual_dtes_hi = chain.get_equal_skew_prices(dte=dte_hi, max_days_diff=0)
+
+                var_lo = variance_swap_approximation(S, put_prices_lo, call_prices_lo, strikes_lo, actual_dtes_lo[0], r)
+                var_hi = variance_swap_approximation(S, put_prices_hi, call_prices_hi, strikes_hi, actual_dtes_hi[0], r)
+
+                T_lo = actual_dtes_lo[0] / 365
+                T_hi = actual_dtes_hi[0] / 365
+                T_target = target_dte / 365
+
+                interpolated_var_swap = linear_interpolated_iv_v1(var_lo, var_hi, T_lo, T_hi, T_target)
+
+            var_swaps.append(interpolated_var_swap)
+
+        return var_swaps, dates, spots
+    
+
+"""
+Old Code
+
+"""
+
+# We are keeping the old rolling skew because I need to update the new one so it uses constant maturity as well
+
+class RollingSkewOld(RollingAnalytics):
 
     def __init__(self, ticker: str, start_date: str, end_date: str, steps: int = 1, iv_calc = RootFinder()) -> None:
         super().__init__(ticker, start_date, end_date, steps, iv_calc)
@@ -555,105 +655,3 @@ class RollingSkew(RollingAnalytics):
         This is true fixed strike skew unlike the Collin Bennet version, ie the strikes do not change over time.
         """
         pass
-
-class RollingKurtosis:
-    pass
-
-class RollingVolatility(RollingAnalytics):
-
-    def __init__(self, ticker: str, start_date: str, end_date: str, steps: int = 1, iv_calc = RootFinder()) -> None:
-        super().__init__(ticker, start_date, end_date, steps, iv_calc)
-
-    def constant_maturity_atm_iv(self, target_dte: int, q: float = 0.0):
-        """
-        This function uses linear interpolation to get a atm constant matuity iv.
-        Right now it only gets put iv, put it uses an implied rate so they should be equal, but in the future we will test for call iv.
-        We will make two other functions one that gets atm put iv and one that gets atm call iv.
-        We should add max_days_diff = 0
-        """
-        ivs, dates, spots = [], [], []
-        t_target = target_dte / 365
-
-        for chain in self.chain_series:
-            dte_list = chain.get_common_dtes()
-            dte_lo, dte_hi = find_bracketing_dtes(dte_list, target_dte)
-
-            S = chain.S
-            spots.append(S)
-
-            # guard: if chain has no usable DTEs
-            if dte_lo is None and dte_hi is None:
-                continue
-
-            # exact match or clamped
-            if dte_hi is None:
-
-                call = chain.get_option(S, otype="call", dte=dte_lo, max_days_diff = 0)
-                put  = chain.get_option(S, otype="put",  dte=dte_lo, max_days_diff = 0)
-
-                T = put.dte / 365  # use the contract's DTE to be consistent with your objects
-                i_rate = implied_rate(call.price, put.price, S, put.strike, T)
-
-                iv = self.iv_calc.calculate(put.price, S, put.strike, T, r=i_rate, otype="put", q=q)
-
-            # interpolate between two expiries
-            else:
-
-                call_lo = chain.get_option(S, otype="call", dte=dte_lo, max_days_diff = 0)
-                put_lo = chain.get_option(S, otype="put", dte=dte_lo, max_days_diff = 0)
-
-                call_hi = chain.get_option(S, otype="call", dte=dte_hi, max_days_diff = 0)
-                put_hi = chain.get_option(S, otype="put", dte=dte_hi, max_days_diff = 0)
-
-                T1 = put_lo.dte / 365
-                T2 = put_hi.dte / 365
-                i_rate1 = implied_rate(call_lo.price, put_lo.price, S, put_lo.strike, T1)
-                i_rate2 = implied_rate(call_hi.price, put_hi.price, S, put_hi.strike, T2)
-
-                iv1 = self.iv_calc.calculate(put_lo.price, S, put_lo.strike, T1, r=i_rate1, otype="put", q=q)
-                iv2 = self.iv_calc.calculate(put_hi.price, S, put_hi.strike, T2, r=i_rate2, otype="put", q=q)
-
-                t1 = dte_lo / 365
-                t2 = dte_hi / 365
-                iv = linear_interpolated_iv_v1(iv1, iv2, t1, t2, t_target)
-
-            ivs.append(iv)
-            dates.append(chain.close_date)
-
-        return ivs, dates, spots
-    
-    def constant_maturity_variance_swap(self, target_dte: int, r: float = 0):
-
-        var_swaps, dates, spots = [], [], []
-
-        for chain in self.chain_series:
-            S = chain.S
-            spots.append(S)
-            dates.append(chain.close_date)
-            dte_list = chain.get_common_dtes()
-            dte_lo, dte_hi = find_bracketing_dtes(dte_list, target_dte)
-
-            if dte_lo is None and dte_hi is None:
-                return None
-
-            if dte_hi is None:
-                put_prices, call_prices, strikes, actual_dtes = chain.get_equal_skew_prices(dte=dte_lo, max_days_diff=0)
-                interpolated_var_swap = variance_swap_approximation(S, put_prices, call_prices, strikes, actual_dtes[0], r)
-
-            else:
-
-                put_prices_lo, call_prices_lo, strikes_lo, actual_dtes_lo = chain.get_equal_skew_prices(dte=dte_lo, max_days_diff=0)
-                put_prices_hi, call_prices_hi, strikes_hi, actual_dtes_hi = chain.get_equal_skew_prices(dte=dte_hi, max_days_diff=0)
-
-                var_lo = variance_swap_approximation(S, put_prices_lo, call_prices_lo, strikes_lo, actual_dtes_lo[0], r)
-                var_hi = variance_swap_approximation(S, put_prices_hi, call_prices_hi, strikes_hi, actual_dtes_hi[0], r)
-
-                T_lo = actual_dtes_lo[0] / 365
-                T_hi = actual_dtes_hi[0] / 365
-                T_target = target_dte / 365
-
-                interpolated_var_swap = linear_interpolated_iv_v1(var_lo, var_hi, T_lo, T_hi, T_target)
-
-            var_swaps.append(interpolated_var_swap)
-
-        return var_swaps, dates, spots
