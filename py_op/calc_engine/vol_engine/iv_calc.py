@@ -93,23 +93,6 @@ class BisectionMethod(ImpliedVolatilityMethod):
 
         return False
 
-class RootFinder2(ImpliedVolatilityMethod):
-
-    def __init__(self, model = an.BlackScholesMertonAnalytical()) -> None:
-        super().__init__(model)
-
-    def calculate(self, market_price: float, S: float, K: int, T: float, r: float = .04, initial_guess: float = .15, otype: str = "call", q = 0.0, **kwargs) -> float:
-
-        if otype == "call":
-            
-            root_fn = lambda x: self.model.call(S, K, T, x, r, q, **kwargs) - market_price
-
-        elif otype == "put":
-            
-            root_fn = lambda x: self.model.put(S, K, T, x, r, q, **kwargs) - market_price
-
-        return root(root_fn,initial_guess)['x'][0]
-
 class RootFinder(ImpliedVolatilityMethod):
 
     def __init__(self, model = an.BlackScholesMertonAnalytical()) -> None:
@@ -117,7 +100,7 @@ class RootFinder(ImpliedVolatilityMethod):
 
     def calculate(self, market_price: float, S: float, K: int, T: float, r: float = .04, initial_guess: float = .15, otype: str = "call", q = 0.0, **kwargs) -> float:
 
-        if isinstance(market_price, float | int):
+        if isinstance(market_price, (float, int, np.float64)):
 
             if otype == "call":
                 
@@ -129,7 +112,8 @@ class RootFinder(ImpliedVolatilityMethod):
 
             return root(root_fn,initial_guess)['x'][0]
         
-        elif isinstance(market_price, np.ndarray | list) and isinstance(K, np.ndarray | list):
+        elif isinstance(market_price, (np.ndarray, list, tuple)) and isinstance(K, (np.ndarray, list, tuple)):
+
             market_prices = np.array(market_price)
             strikes = np.array(K)
             initial_guess_array = np.full_like(market_prices, initial_guess, dtype=float)
