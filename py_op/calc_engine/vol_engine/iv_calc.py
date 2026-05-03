@@ -67,7 +67,7 @@ class NewtonsMethod(ImpliedVolatilityMethod):
                     xnew = xnew - ((self.model.put(S, strikes, T, xold, r, q, **kwargs) - market_price) / AnalyticalVega.calculate(S, strikes, T, xold, r, q))
                 
         return False
-    
+
 class BisectionMethod(ImpliedVolatilityMethod):
 
     def __init__(self, model = an.BlackScholesMertonAnalytical()) -> None:
@@ -75,25 +75,35 @@ class BisectionMethod(ImpliedVolatilityMethod):
 
     def calculate(self, market_price: float, S: int, K: int, T: float, r: float = .05, initial_guess: float = .2, lower_vol: float = 0.0, upper_vol: float = 5.0, otype: str = "call", q = .02, **kwargs):
 
-        iv = initial_guess
+        market_price = np.asarray(market_price, dtype=float)
+        K = np.asarray(K, dtype=float)
+
+        lower_vol = np.full_like(market_price, lower_vol, dtype=float)
+        upper_vol = np.full_like(market_price, upper_vol, dtype=float)
+        iv = np.full_like(market_price, initial_guess, dtype=float)
 
         for _ in range(1000):
 
-            if otype == 'call':
+            if otype == "call":
                 model_price = self.model.call(S, K, T, iv, r, q, **kwargs)
-            else:
+            elif otype == "put":
                 model_price = self.model.put(S, K, T, iv, r, q, **kwargs)
-            
-            if abs(market_price - model_price) < .001 or upper_vol - lower_vol < .001:
+            else:
+                raise ValueError("otype must be 'call' or 'put'")
+
+            price_close = np.abs(market_price - model_price) < 0.001
+            vol_close = np.abs(upper_vol - lower_vol) < 0.001
+
+            if np.all(price_close | vol_close):
                 return iv
 
-            if market_price - model_price > 0:
-                lower_vol = iv
-            else:
-                upper_vol = iv
+            # If model price is too low, need higher vol
+            move_lower = market_price - model_price > 0
+
+            lower_vol = np.where(move_lower, iv, lower_vol)
+            upper_vol = np.where(move_lower, upper_vol, iv)
 
             iv = (lower_vol + upper_vol) / 2
-            #print(f"iv {iv}")
 
         return False
 
@@ -139,8 +149,8 @@ class InverseGaussian(ImpliedVolatilityMethod):
         super().__init__(model)
 
     def calculate(self, market_price: float, S: float, K: int, T: float, r: float = 0.04, initial_guess = None, otype: str = "call", q: float = 0.00, **kwargs) -> float | list:
-        prices = np.asarray(prices, dtype=float)
-        strikes = np.asarray(strikes, dtype=float)
+        prices = np.asarray(market_price, dtype=float)
+        strikes = np.asarray(K, dtype=float)
 
         D = np.exp(-r*T)
         F = S / (D*np.exp(q*T))
@@ -149,9 +159,14 @@ class InverseGaussian(ImpliedVolatilityMethod):
 
         m = np.where(strikes > F, 1.0, strikes / F)
 
-        c = prices / (D * F)
+        disc_prices = prices / (D * F)
 
-        iv = 2 / np.sqrt(T * invgauss.ppf((1 - c) / m, mu = 2 / abs(k), scale = 1))
+        if otype == "call":
+            iv = 2 / np.sqrt(T * invgauss.ppf((1 - disc_prices) / m, mu = 2 / abs(k), scale = 1))
+
+        else:
+            iv = 2 / np.sqrt(T * invgauss.ppf((np.exp(k) - disc_prices) / m, mu = 2 / abs(k), scale = 1))
+
         return iv
 
 class ImpliedVolatility:
@@ -176,6 +191,9 @@ class ImpliedVolatility:
         params = {'market_price': market_price, 'S': S, 'K': K, 'T': T, 'r': r, 'initial_guess': initial_guess, 'otype': otype, 'q': q, **kwargs}
         return BisectionMethod(self.model).calculate(**params)
 
+    def inverse_gaussian(self, market_price, S, K, T, r = .05, initial_guess = None, otype = "call", q = 0, **kwargs):
+        params = {'market_price': market_price, 'S': S, 'K': K, 'T': T, 'r': r, 'initial_guess': initial_guess, 'otype': otype, 'q': q, **kwargs}
+        return InverseGaussian(self.model).calculate(**params)
 
 class SkewCalculator:
 
@@ -191,16 +209,28 @@ class SkewCalculator:
 
         return numerator / denominator
 
+    # def calculate_call_skew(self, S: float, call_prices: list[float], strikes: list[float], dte: int, r: float = 0.04, initial_guess: float = 0.15, q: float = 0):
+
+    #     call_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="call", q=q), strike) for price, strike in zip(call_prices, strikes)]
+    #     ivs, strikes = zip(*call_skew_data)
+    #     return ivs, strikes
+    
     def calculate_call_skew(self, S: float, call_prices: list[float], strikes: list[float], dte: int, r: float = 0.04, initial_guess: float = 0.15, q: float = 0):
 
-        call_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="call", q=q), strike) for price, strike in zip(call_prices, strikes)]
-        ivs, strikes = zip(*call_skew_data)
+        #call_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="call", q=q), strike) for price, strike in zip(call_prices, strikes)]
+        ivs = self.iv_calculator.calculate(call_prices, S, strikes, dte, r=r, initial_guess=initial_guess, otype="call", q=q)
         return ivs, strikes
     
+    # def calculate_put_skew(self, S: float, put_prices: list[float], strikes: list[float], dte: int, r: float = 0.04, initial_guess: float = 0.15, q: float = 0):
+
+    #     put_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="put", q=q), strike) for price, strike in zip(put_prices, strikes)]
+    #     ivs, strikes = zip(*put_skew_data)
+    #     return ivs, strikes
+
     def calculate_put_skew(self, S: float, put_prices: list[float], strikes: list[float], dte: int, r: float = 0.04, initial_guess: float = 0.15, q: float = 0):
 
-        put_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="put", q=q), strike) for price, strike in zip(put_prices, strikes)]
-        ivs, strikes = zip(*put_skew_data)
+        #call_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="call", q=q), strike) for price, strike in zip(call_prices, strikes)]
+        ivs = self.iv_calculator.calculate(put_prices, S, strikes, dte, r=r, initial_guess=initial_guess, otype="put", q=q)
         return ivs, strikes
 
     def calculate_otm_skew(self, S: float, otm_prices: list[float], strikes: list[float], dte: int, r: float = 0.04, initial_guess: float = 0.15, q: float = 0):
