@@ -6,7 +6,7 @@ from py_op.calc_engine.misc_funcs.put_call_parity import implied_rate
 
 import numpy as np
 from scipy.optimize import root
-from scipy.stats import norm
+from scipy.stats import norm, invgauss
 """
 This module is for trying the strategy pattern for iv
 
@@ -39,28 +39,32 @@ class ImpliedVolatilityMethod:
         
     def calculate(self):
         pass
-
+    
 class NewtonsMethod(ImpliedVolatilityMethod):
 
     def __init__(self, model = an.BlackScholesMertonAnalytical()) -> None:
         super().__init__(model)
 
     def calculate(self, market_price: float, S: int, K: int, T: float, r: float = .05, initial_guess: float = .2, otype: str = "call", q = .02, **kwargs) -> float:
+        
+        market_prices = np.array(market_price)
+        strikes = np.array(K)
     
-        xnew: float = initial_guess
+        xnew = np.full_like(market_price, initial_guess, dtype=float)
         xold: float = 1 - xnew
+
         for i in range(100):
-            if abs(xnew - xold) < .001:
-                
-                return round(xnew, 3)
+            if np.all(np.abs(xnew - xold) < .001):
+                return np.round(xnew, 3)
+            
             else:
-                xold = xnew
+                xold = xnew.copy()
 
                 if otype == "call":
-                    xnew = xnew - ((self.model.call(S, K, T, xold, r, q, **kwargs) - market_price) / AnalyticalVega.calculate(S, K, T, xold, r, q))
+                    xnew = xnew - ((self.model.call(S, strikes, T, xold, r, q, **kwargs) - market_prices) / AnalyticalVega.calculate(S, strikes, T, xold, r, q))
 
                 elif otype == 'put':
-                    xnew = xnew - ((self.model.put(S, K, T, xold, r, q, **kwargs) - market_price) / AnalyticalVega.calculate(S, K, T, xold, r, q))
+                    xnew = xnew - ((self.model.put(S, strikes, T, xold, r, q, **kwargs) - market_price) / AnalyticalVega.calculate(S, strikes, T, xold, r, q))
                 
         return False
     
@@ -98,7 +102,7 @@ class RootFinder(ImpliedVolatilityMethod):
     def __init__(self, model = an.BlackScholesMertonAnalytical()) -> None:
         super().__init__(model)
 
-    def calculate(self, market_price: float, S: float, K: int, T: float, r: float = .04, initial_guess: float = .15, otype: str = "call", q = 0.0, **kwargs) -> float:
+    def calculate(self, market_price: float, S: float, K: int, T: float, r: float = .04, initial_guess: float = .15, otype: str = "call", q: float = 0.0, **kwargs) -> float:
 
         if isinstance(market_price, (float, int, np.float64)):
 
@@ -128,6 +132,27 @@ class RootFinder(ImpliedVolatilityMethod):
 
             sol = root(root_fn, initial_guess_array)
             return sol['x']
+
+class InverseGaussian(ImpliedVolatilityMethod):
+
+    def __init__(self, model = an.BlackScholesMertonAnalytical()) -> None:
+        super().__init__(model)
+
+    def calculate(self, market_price: float, S: float, K: int, T: float, r: float = 0.04, initial_guess = None, otype: str = "call", q: float = 0.00, **kwargs) -> float | list:
+        prices = np.asarray(prices, dtype=float)
+        strikes = np.asarray(strikes, dtype=float)
+
+        D = np.exp(-r*T)
+        F = S / (D*np.exp(q*T))
+
+        k = np.log(strikes/F)
+
+        m = np.where(strikes > F, 1.0, strikes / F)
+
+        c = prices / (D * F)
+
+        iv = 2 / np.sqrt(T * invgauss.ppf((1 - c) / m, mu = 2 / abs(k), scale = 1))
+        return iv
 
 class ImpliedVolatility:
 
