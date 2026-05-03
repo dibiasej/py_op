@@ -41,6 +41,41 @@ def variance_swap_approximation(S, put_prices, call_prices, strikes, dte, r):
     vix = np.sqrt(sigma_2_new)
     return vix
 
+def skew_swap_approximation(S, put_prices, call_prices, strikes, dte):
+
+    strikes = np.asarray(strikes, dtype=float)
+    put_prices = np.asarray(put_prices, dtype=float)
+    call_prices = np.asarray(call_prices, dtype=float)
+
+    # Sort everything by strike just in case
+    idx = np.argsort(strikes)
+    strikes = strikes[idx]
+    put_prices = put_prices[idx]
+    call_prices = call_prices[idx]
+
+    T = dte / 365.0
+    ks_sum = 0.0
+
+    for i in range(1, len(strikes) - 1):
+        K = strikes[i]
+
+        # Central-difference strike spacing
+        dK = (strikes[i + 1] - strikes[i - 1]) / 2.0
+
+        # Equation (6): use puts for K < S0, calls for K > S0
+        # At K = S0, integrand is zero anyway since (S0 - K) = 0
+        if K < S:
+            Q = put_prices[i]
+        elif K > S:
+            Q = call_prices[i]
+        else:
+            Q = 0.0
+
+        integrand = Q * (S - K) / (K ** 2)
+        ks_sum += integrand * dK
+
+    Ks = (2.0 / (T * S)) * ks_sum
+    return Ks
 
 def linear_interpolated_iv_v1(iv1, iv2, dte1, dte2, target_date):
     """

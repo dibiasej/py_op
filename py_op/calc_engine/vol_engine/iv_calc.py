@@ -93,12 +93,12 @@ class BisectionMethod(ImpliedVolatilityMethod):
 
         return False
 
-class RootFinder(ImpliedVolatilityMethod):
+class RootFinder2(ImpliedVolatilityMethod):
 
     def __init__(self, model = an.BlackScholesMertonAnalytical()) -> None:
         super().__init__(model)
 
-    def calculate(self, market_price: float, S: float, K: int, T: float, r: float = .05, initial_guess: float = .15, otype: str = "call", q = .02, **kwargs) -> float:
+    def calculate(self, market_price: float, S: float, K: int, T: float, r: float = .04, initial_guess: float = .15, otype: str = "call", q = 0.0, **kwargs) -> float:
 
         if otype == "call":
             
@@ -109,6 +109,41 @@ class RootFinder(ImpliedVolatilityMethod):
             root_fn = lambda x: self.model.put(S, K, T, x, r, q, **kwargs) - market_price
 
         return root(root_fn,initial_guess)['x'][0]
+
+class RootFinder(ImpliedVolatilityMethod):
+
+    def __init__(self, model = an.BlackScholesMertonAnalytical()) -> None:
+        super().__init__(model)
+
+    def calculate(self, market_price: float, S: float, K: int, T: float, r: float = .04, initial_guess: float = .15, otype: str = "call", q = 0.0, **kwargs) -> float:
+
+        if isinstance(market_price, float | int):
+
+            if otype == "call":
+                
+                root_fn = lambda x: self.model.call(S, K, T, x, r, q, **kwargs) - market_price
+
+            elif otype == "put":
+                
+                root_fn = lambda x: self.model.put(S, K, T, x, r, q, **kwargs) - market_price
+
+            return root(root_fn,initial_guess)['x'][0]
+        
+        elif isinstance(market_price, np.ndarray | list) and isinstance(K, np.ndarray | list):
+            market_prices = np.array(market_price)
+            strikes = np.array(K)
+            initial_guess_array = np.full_like(market_prices, initial_guess, dtype=float)
+
+            if otype == "call":
+
+                root_fn = lambda x: self.model.call(S, strikes, T, x, r, q, **kwargs) - market_prices
+
+            if otype == "put":
+
+                root_fn = lambda x: self.model.put(S, strikes, T, x, r, q, **kwargs) - market_prices
+
+            sol = root(root_fn, initial_guess_array)
+            return sol['x']
 
 class ImpliedVolatility:
 

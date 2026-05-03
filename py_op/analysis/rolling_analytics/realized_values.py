@@ -43,9 +43,32 @@ def realized_vol_of_vol(sig: np.ndarray[float], largest_lag: int):
 
 def rolling_realized_volatility(ticker: str, start: str, end: str, realized_vol_strategy: str = "close_to_close", realized_volatility_period: str = "M", freq: str = "D"):
     rvol, dates =  get_realized_vol_strategy(realized_vol_strategy).calculate(ticker, start, end, realized_volatility_period, freq)
-    return rvol, dates
+    return rvol
 
 def rolling_realized_skewness(ticker: str, start_date: str, end_date: str, realized_volatility_period: str = "M", freq: str = "D"):
+    length_int = rv_utils.realized_volatility_period_length(realized_volatility_period, freq)
+    log_rets, dates = get_log_rets(ticker, start=start_date, end=end_date, freq=freq)
+
+    log_rets = np.asarray(log_rets, dtype=float)
+    realized_skews = []
+
+    for i in range(len(log_rets) - length_int + 1):
+        x = log_rets[i:i + length_int]
+        n = len(x)
+
+        sum_sq = np.sum(x**2)
+
+        # Avoid division by zero
+        if sum_sq == 0:
+            realized_skews.append(np.nan)
+        else:
+            sum_cu = np.sum(x**3)
+            skew = (np.sqrt(n) * sum_cu) / (sum_sq ** 1.5)
+            realized_skews.append(skew)
+
+    return realized_skews, dates[length_int - 1:]
+
+def rolling_realized_skewness1(ticker: str, start_date: str, end_date: str, realized_volatility_period: str = "M", freq: str = "D"):
     length_int = rv_utils.realized_volatility_period_length(realized_volatility_period, freq)
     log_rets, dates = get_log_rets(ticker, start=start_date, end=end_date, freq=freq)
 
