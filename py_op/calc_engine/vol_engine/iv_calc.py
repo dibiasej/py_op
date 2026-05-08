@@ -223,32 +223,28 @@ class SkewCalculator:
 
     def calculate_call_skew(self, S: float, call_prices: list[float], strikes: list[float], dte: int, r: float = 0.04, initial_guess: float = 0.15, q: float = 0):
 
-        print(f"iv calc: {self.iv_calculator}")
-        if self.iv_calculator == "Newtons Method" or self.iv_calculator == "Bisection Method" or self.iv_calculator == "Root Finder Method":
+        if repr(self.iv_calculator) == "Newtons Method" or repr(self.iv_calculator) == "Bisection Method" or repr(self.iv_calculator) == "Root Finder Method":
+            print(f"iv calc: {self.iv_calculator}")
             call_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="call", q=q), strike) for price, strike in zip(call_prices, strikes)]
             ivs, strikes = zip(*call_skew_data)
 
         elif repr(self.iv_calculator) == "Inverse Gaussian Method":
+            print(f"iv calc: {self.iv_calculator}")
             ivs = self.iv_calculator.calculate(call_prices, S, strikes, dte, r=r, initial_guess=initial_guess, otype="call", q=q)
 
         return ivs, strikes
-    
-    # def calculate_call_skew(self, S: float, call_prices: list[float], strikes: list[float], dte: int, r: float = 0.04, initial_guess: float = 0.15, q: float = 0):
-
-    #     #call_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="call", q=q), strike) for price, strike in zip(call_prices, strikes)]
-    #     ivs = self.iv_calculator.calculate(call_prices, S, strikes, dte, r=r, initial_guess=initial_guess, otype="call", q=q)
-    #     return ivs, strikes
-    
-    # def calculate_put_skew(self, S: float, put_prices: list[float], strikes: list[float], dte: int, r: float = 0.04, initial_guess: float = 0.15, q: float = 0):
-
-    #     put_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="put", q=q), strike) for price, strike in zip(put_prices, strikes)]
-    #     ivs, strikes = zip(*put_skew_data)
-    #     return ivs, strikes
 
     def calculate_put_skew(self, S: float, put_prices: list[float], strikes: list[float], dte: int, r: float = 0.04, initial_guess: float = 0.15, q: float = 0):
 
-        #call_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="call", q=q), strike) for price, strike in zip(call_prices, strikes)]
-        ivs = self.iv_calculator.calculate(put_prices, S, strikes, dte, r=r, initial_guess=initial_guess, otype="put", q=q)
+        if repr(self.iv_calculator) == "Newtons Method" or repr(self.iv_calculator) == "Bisection Method" or repr(self.iv_calculator) == "Root Finder Method":
+            print(f"iv calc: {self.iv_calculator}")
+            put_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="put", q=q), strike) for price, strike in zip(put_prices, strikes)]
+            ivs, strikes = zip(*put_skew_data)
+
+        elif repr(self.iv_calculator) == "Inverse Gaussian Method":
+            print(f"iv calc: {self.iv_calculator}")
+            ivs = self.iv_calculator.calculate(put_prices, S, strikes, dte, r=r, initial_guess=initial_guess, otype="put", q=q)
+
         return ivs, strikes
 
     def calculate_otm_skew(self, S: float, otm_prices: list[float], strikes: list[float], dte: int, r: float = 0.04, initial_guess: float = 0.15, q: float = 0):
@@ -261,10 +257,7 @@ class SkewCalculator:
 
         """
 
-        otm_skew_data = [
-                (self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="put" if strike < S else "call", q=q), strike)
-                    for price, strike in zip(otm_prices, strikes) if strike != S
-                ]
+        otm_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="put" if strike < S else "call", q=q), strike) for price, strike in zip(otm_prices, strikes) if strike != S]
         
         ivs, strikes = zip(*otm_skew_data)
 
