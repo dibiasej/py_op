@@ -13,6 +13,7 @@ from py_op.calc_engine.vol_engine.iv_calc import (
     RootFinder,
     BisectionMethod,
     NewtonsMethod,
+    InverseGaussian,
     SkewCalculator,
     TermStructureCalculator,
 )

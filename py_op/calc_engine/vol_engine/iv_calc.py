@@ -67,6 +67,9 @@ class NewtonsMethod(ImpliedVolatilityMethod):
                     xnew = xnew - ((self.model.put(S, strikes, T, xold, r, q, **kwargs) - market_price) / AnalyticalVega.calculate(S, strikes, T, xold, r, q))
                 
         return False
+    
+    def __repr__(self) -> str:
+        return "Newtons Method"
 
 class BisectionMethod(ImpliedVolatilityMethod):
 
@@ -106,6 +109,9 @@ class BisectionMethod(ImpliedVolatilityMethod):
             iv = (lower_vol + upper_vol) / 2
 
         return False
+    
+    def __repr__(self) -> str:
+        return "Bisection Method"
 
 class RootFinder(ImpliedVolatilityMethod):
 
@@ -142,6 +148,9 @@ class RootFinder(ImpliedVolatilityMethod):
 
             sol = root(root_fn, initial_guess_array)
             return sol['x']
+        
+    def __repr__(self) -> str:
+        return "Root Finder Method"
 
 class InverseGaussian(ImpliedVolatilityMethod):
 
@@ -168,6 +177,9 @@ class InverseGaussian(ImpliedVolatilityMethod):
             iv = 2 / np.sqrt(T * invgauss.ppf((np.exp(k) - disc_prices) / m, mu = 2 / abs(k), scale = 1))
 
         return iv
+    
+    def __repr__(self) -> str:
+        return "Inverse Gaussian Method"
 
 class ImpliedVolatility:
 
@@ -209,17 +221,23 @@ class SkewCalculator:
 
         return numerator / denominator
 
-    # def calculate_call_skew(self, S: float, call_prices: list[float], strikes: list[float], dte: int, r: float = 0.04, initial_guess: float = 0.15, q: float = 0):
-
-    #     call_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="call", q=q), strike) for price, strike in zip(call_prices, strikes)]
-    #     ivs, strikes = zip(*call_skew_data)
-    #     return ivs, strikes
-    
     def calculate_call_skew(self, S: float, call_prices: list[float], strikes: list[float], dte: int, r: float = 0.04, initial_guess: float = 0.15, q: float = 0):
 
-        #call_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="call", q=q), strike) for price, strike in zip(call_prices, strikes)]
-        ivs = self.iv_calculator.calculate(call_prices, S, strikes, dte, r=r, initial_guess=initial_guess, otype="call", q=q)
+        print(f"iv calc: {self.iv_calculator}")
+        if self.iv_calculator == "Newtons Method" or self.iv_calculator == "Bisection Method" or self.iv_calculator == "Root Finder Method":
+            call_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="call", q=q), strike) for price, strike in zip(call_prices, strikes)]
+            ivs, strikes = zip(*call_skew_data)
+
+        elif repr(self.iv_calculator) == "Inverse Gaussian Method":
+            ivs = self.iv_calculator.calculate(call_prices, S, strikes, dte, r=r, initial_guess=initial_guess, otype="call", q=q)
+
         return ivs, strikes
+    
+    # def calculate_call_skew(self, S: float, call_prices: list[float], strikes: list[float], dte: int, r: float = 0.04, initial_guess: float = 0.15, q: float = 0):
+
+    #     #call_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="call", q=q), strike) for price, strike in zip(call_prices, strikes)]
+    #     ivs = self.iv_calculator.calculate(call_prices, S, strikes, dte, r=r, initial_guess=initial_guess, otype="call", q=q)
+    #     return ivs, strikes
     
     # def calculate_put_skew(self, S: float, put_prices: list[float], strikes: list[float], dte: int, r: float = 0.04, initial_guess: float = 0.15, q: float = 0):
 
