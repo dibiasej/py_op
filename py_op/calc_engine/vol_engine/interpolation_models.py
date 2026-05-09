@@ -117,7 +117,7 @@ class GVV(GVVUtils, InterpolationBaseClass):
         coeffs, residuals, rank, s = np.linalg.lstsq(X, y, rcond=None)
         return coeffs 
 
-    def skew(self, S: float, strikes: list[float], ivs_init: list[float], dte: float, weights: bool = False, method: str = 'bisection', interpolation_points: int = 200, b1 = None, b2 = None, b3 = None) -> list[float]:
+    def skew(self, S: float, strikes: list[float], ivs_init: list[float], dte: float, weights: bool = True, method: str = 'polynomial', interpolation_points: int = 200, b1 = None, b2 = None, b3 = None) -> list[float]:
         """
         Currently this uses a bisection method to fit the skew curve, we need to look into making it work better it tends to be very susceptible to outliers.
         !!! Look into this !!!
