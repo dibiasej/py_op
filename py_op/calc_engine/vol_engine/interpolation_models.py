@@ -121,7 +121,7 @@ class GVV(GVVUtils, InterpolationBaseClass):
         """
         Currently this uses a bisection method to fit the skew curve, we need to look into making it work better it tends to be very susceptible to outliers.
         !!! Look into this !!!
-        Current methods: bisection, binary_search, secant 
+        Current methods: bisection, binary_search, secant, polynomial 
         """
 
         coeffs = (b1, b2, b3)
@@ -148,20 +148,6 @@ class GVV(GVVUtils, InterpolationBaseClass):
                 ivs_rooted.append(iv)
                 new_strikes.append(K)
         return np.array(ivs_rooted), np.array(new_strikes)
-    
-    def skew_polynomial_strike(self, F, strikes, ivs, dte, weights: bool = False):
-        """
-        This doesnt work very well need to work on it
-        """
-        ivs, strikes, r = np.array(ivs), np.array(strikes), 0
-
-        vol_level, spot_vol, vol_vol = self.implied_parameters(F, strikes, ivs, dte, weights = False)
-
-        d1 = (np.log(F / strikes) + (r + 0.5 * ivs ** 2) * dte) / (ivs * np.sqrt(dte))
-        d2 = d1 - ivs * np.sqrt(dte)
-
-        ivs = np.sqrt(vol_level**2 - 2*spot_vol*vol_vol*vol_level*np.sqrt(dte)*d2 + vol_vol**2 *d1*d2 * dte)
-        return ivs, strikes
 
     def implied_parameters(self, S: float, strikes: list[float], ivs: list[float], dte: float, weights: bool = False, scale_spot_vol = False) -> (float, float, float):
         """

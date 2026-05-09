@@ -258,15 +258,15 @@ class OptionChain:
             has_put = put_option_node is not None
 
             if has_call and has_put:
-                call_price = call_option_node.price
-                put_price = put_option_node.price
+                call_price = call_option_node.mid_price
+                put_price = put_option_node.mid_price
 
             elif has_call:
-                call_price = call_option_node.price
+                call_price = call_option_node.mid_price
                 put_price = call_price - self.S * np.exp(-q * T) + strike * np.exp(-r * T)
 
             elif has_put:
-                put_price = put_option_node.price
+                put_price = put_option_node.mid_price
                 call_price = put_price + self.S * np.exp(-q * T) - strike * np.exp(-r * T)
 
             put_prices.append(float(put_price))
