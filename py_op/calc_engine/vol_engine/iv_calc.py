@@ -224,12 +224,10 @@ class SkewCalculator:
     def calculate_call_skew(self, S: float, call_prices: list[float], strikes: list[float], dte: int, r: float = 0.04, initial_guess: float = 0.15, q: float = 0):
 
         if repr(self.iv_calculator) == "Newtons Method" or repr(self.iv_calculator) == "Bisection Method" or repr(self.iv_calculator) == "Root Finder Method":
-            print(f"iv calc: {self.iv_calculator}")
             call_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="call", q=q), strike) for price, strike in zip(call_prices, strikes)]
             ivs, strikes = zip(*call_skew_data)
 
         elif repr(self.iv_calculator) == "Inverse Gaussian Method":
-            print(f"iv calc: {self.iv_calculator}")
             ivs = self.iv_calculator.calculate(call_prices, S, strikes, dte, r=r, initial_guess=initial_guess, otype="call", q=q)
 
         return ivs, strikes
@@ -237,12 +235,10 @@ class SkewCalculator:
     def calculate_put_skew(self, S: float, put_prices: list[float], strikes: list[float], dte: int, r: float = 0.04, initial_guess: float = 0.15, q: float = 0):
 
         if repr(self.iv_calculator) == "Newtons Method" or repr(self.iv_calculator) == "Bisection Method" or repr(self.iv_calculator) == "Root Finder Method":
-            print(f"iv calc: {self.iv_calculator}")
             put_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="put", q=q), strike) for price, strike in zip(put_prices, strikes)]
             ivs, strikes = zip(*put_skew_data)
 
         elif repr(self.iv_calculator) == "Inverse Gaussian Method":
-            print(f"iv calc: {self.iv_calculator}")
             ivs = self.iv_calculator.calculate(put_prices, S, strikes, dte, r=r, initial_guess=initial_guess, otype="put", q=q)
 
         return ivs, strikes
@@ -256,10 +252,24 @@ class SkewCalculator:
         Arguments:
 
         """
+        if repr(self.iv_calculator) == "Newtons Method" or repr(self.iv_calculator) == "Bisection Method" or repr(self.iv_calculator) == "Root Finder Method":
+            otm_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="put" if strike < S else "call", q=q), strike) for price, strike in zip(otm_prices, strikes) if strike != S]
+            ivs, strikes = zip(*otm_skew_data)
 
-        otm_skew_data = [(self.iv_calculator.calculate(price, S, strike, dte, r=r, initial_guess=initial_guess, otype="put" if strike < S else "call", q=q), strike) for price, strike in zip(otm_prices, strikes) if strike != S]
-        
-        ivs, strikes = zip(*otm_skew_data)
+        elif repr(self.iv_calculator) == "Inverse Gaussian Method":
+            otm_prices = np.array(otm_prices)
+            strikes = np.array(strikes)
+
+            put_mask, call_mask = strikes < S, strikes > S
+
+            put_prices = otm_prices[put_mask]
+            call_prices = otm_prices[call_mask]
+
+            put_strikes = strikes[put_mask]
+            call_strikes = strikes[call_mask]
+            put_ivs = self.iv_calculator.calculate(put_prices, S, put_strikes, dte, r=r, initial_guess=initial_guess, otype="put")
+            call_ivs = self.iv_calculator.calculate(call_prices, S, call_strikes, dte, r=r, initial_guess=initial_guess, otype="call")
+            ivs = np.concatenate([put_ivs, call_ivs])
 
         return ivs, strikes
 
