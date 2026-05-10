@@ -209,7 +209,7 @@ class ImpliedVolatility:
 
 class SkewCalculator:
 
-    def __init__(self, iv_calculator: ImpliedVolatilityMethod = RootFinder()):
+    def __init__(self, iv_calculator: ImpliedVolatilityMethod = InverseGaussian()):
         self.iv_calculator = iv_calculator
 
     def skew_slope_arbitrage_bound(self, S: float, K: float, dte: float, iv: float, r: float = 0, q: float = 0) -> float:

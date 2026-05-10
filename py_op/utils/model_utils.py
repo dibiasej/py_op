@@ -206,4 +206,4 @@ class GVVUtils:
         implied_corr = spotvol_cov / (return_vol*implvol_vol)
 
         gvv_fit = np.sqrt(abs(return_var + 2*implied_corr*return_vol*implvol_vol*np.log(strikes/F) + implvol_var*(np.log(strikes/F)**2)))
-        return gvv_fit, np.log(strikes/F)
+        return gvv_fit, strikes

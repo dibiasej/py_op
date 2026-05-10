@@ -1,14 +1,14 @@
 import numpy as np
 
 from py_op.data.builders.option_chain_builder import create_chain_series
-from py_op.calc_engine.vol_engine.iv_calc import RootFinder
+from py_op.calc_engine.vol_engine.iv_calc import RootFinder, InverseGaussian
 from py_op.calc_engine.vol_engine.interpolation_models import GVV
 from py_op.calc_engine.vol_engine.iv_calc import SkewCalculator
 from py_op.calc_engine.greeks.analytical_greeks import AnalyticalDelta
 
 class RollingAnalytics:
 
-    def __init__(self, ticker: str, start_date: str, end_date:str, moneyness: float = None, steps: int = 1, iv_calc = RootFinder()) -> None:
+    def __init__(self, ticker: str, start_date: str, end_date:str, moneyness: float = None, steps: int = 1, iv_calc = InverseGaussian()) -> None:
         self.ticker = ticker
         self.start_date = start_date
         self.end_date = end_date
@@ -20,13 +20,13 @@ class RollingAnalytics:
 class RollingGVV(RollingAnalytics):
     # We might add term structure metrics as well eg term premia
 
-    def __init__(self, ticker: str, start_date: str, end_date: str, moneyness: float = None, steps: int = 1, iv_calc = RootFinder()) -> None:
+    def __init__(self, ticker: str, start_date: str, end_date: str, moneyness: float = None, steps: int = 1, iv_calc = InverseGaussian()) -> None:
         super().__init__(ticker, start_date, end_date, moneyness, steps, iv_calc)
         self.gvv = GVV()
         self.skew_calculator = SkewCalculator()
         self.delta_calc = AnalyticalDelta()
 
-    def _implied_parameter_helper(self, dte: float, r: float = 0.04, weights: bool = False):
+    def _implied_parameter_helper(self, dte: float, r: float = 0.04, weights: bool = True):
 
         close_dates = []
 
@@ -41,12 +41,13 @@ class RollingGVV(RollingAnalytics):
         for chain in self.chain_series:
             close_date = chain.close_date
             S = chain.S
-            put_prices, call_prices, strikes, actual_dtes = chain.get_equal_skew_prices(dte = dte, max_days_diff=20)
-            actual_dte = actual_dtes[0]
-            F = S*np.exp(r * (actual_dte/365))
-            parity_ivs, new_strikes = zip(*self.skew_calculator.calculate_parity_skew_all_data(F, put_prices, call_prices, strikes, actual_dte/365))
-            vol_level, spot_vol_corr, vol_vol = self.gvv.implied_parameters(F, new_strikes, parity_ivs, actual_dte/365, weights)
-            ivs, strikes = self.gvv.skew(F, new_strikes, parity_ivs, actual_dte/365, weights)
+            put_prices, call_prices, strikes, actual_dte = chain.get_equal_skew_prices(dte = dte, max_days_diff=20)
+            #actual_dte = actual_dtes[0]
+            #F = S*np.exp(r * (actual_dte/365))
+            #parity_ivs, new_strikes = zip(*self.skew_calculator.calculate_parity_skew_all_data(F, put_prices, call_prices, strikes, actual_dte/365))
+            parity_ivs, new_strikes = zip(*self.skew_calculator.calculate_parity_skew(S, put_prices, call_prices, strikes, actual_dte/365))
+            vol_level, spot_vol_corr, vol_vol = self.gvv.implied_parameters(S, new_strikes, parity_ivs, actual_dte/365, weights)
+            ivs, strikes = self.gvv.skew(S, new_strikes, parity_ivs, actual_dte/365, weights, method = "polynomial")
 
             close_dates.append(close_date)
             spots.append(S)
@@ -60,7 +61,7 @@ class RollingGVV(RollingAnalytics):
 
         return close_dates, spots, vol_levels, spot_vol_corrs, vol_vols, skews, strike_list
 
-    def _select_skew_points(self, dte: float, r: float = 0.04, q: float = 0.0, weights: bool = False, mode: str = "moneyness", put_moneyness: float = 0.1, call_moneyness: float = 0.1, put_delta: float = -0.25, call_delta: float = 0.25):
+    def _select_skew_points(self, dte: float, r: float = 0.04, q: float = 0.0, weights: bool = True, mode: str = "moneyness", put_moneyness: float = 0.1, call_moneyness: float = 0.1, put_delta: float = -0.25, call_delta: float = 0.25):
         dates, spots, _, _, _, skews, strikes_list = self._implied_parameter_helper(dte, r, weights)
 
         for i in range(len(skews)):
@@ -83,7 +84,11 @@ class RollingGVV(RollingAnalytics):
 
             put_iv,  K_put  = float(skew[idx_put]),  float(strikes[idx_put])
             call_iv, K_call = float(skew[idx_call]), float(strikes[idx_call])
-
+            print(f"skew {skew}, strikes {strikes}")
+            print(f"put iv: {put_iv}")
+            print(f"call iv: {call_iv}")
+            print(f"K put: {K_put}")
+            print(f"K call: {K_call}\n")
             yield put_iv, call_iv, K_put, K_call, spot, date
 
 

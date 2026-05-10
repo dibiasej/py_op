@@ -230,50 +230,6 @@ class OptionChain:
         # list of tuples: (put, call)
         return [(puts_by_strike[k], calls_by_strike[k]) for k in common_strikes]
 
-    def get_put_call_prices_skew(self, dte: int = None, max_days_diff: int = 4, r: float = 0.04, q: float = 0):
-        """
-        This method gets a list of call and put prices across skew for a certain expiration.
-        Notes: We do not use a parameter for exp only for dte.
-               We look for both put and call prices at a certain strike and if one is not found we use put call parity to approximate the missing price
-        """
-
-        exp_data = self.get_exp_from_dte(dte, max_days_diff)
-        if exp_data is None:
-            return []  # or raise ValueError
-        exp = exp_data[0]
-        real_dte = exp_data[2]
-        T = real_dte / 365
-
-        keys = self.skew_data.get(exp, [])
-        unique_strikes = sorted(set(key[1] for key in keys))
-
-        put_prices = []
-        call_prices = []
-
-        for strike in unique_strikes:
-            call_option_node = self.option_nodes.get((exp, strike, "call"))
-            put_option_node = self.option_nodes.get((exp, strike, "put"))
-
-            has_call = call_option_node is not None
-            has_put = put_option_node is not None
-
-            if has_call and has_put:
-                call_price = call_option_node.mid_price if call_option_node.mid_price != 0 else call_option_node.price
-                put_price = put_option_node.mid_price if put_option_node.mid_price != 0 else put_option_node.price
-
-            elif has_call:
-                call_price = call_option_node.mid_price if call_option_node.mid_price != 0 else call_option_node.price
-                put_price = call_price - self.S * np.exp(-q * T) + strike * np.exp(-r * T)
-
-            elif has_put:
-                put_price = put_option_node.mid_price if put_option_node.mid_price != 0 else put_option_node.price
-                call_price = put_price + self.S * np.exp(-q * T) - strike * np.exp(-r * T)
-
-            put_prices.append(float(put_price))
-            call_prices.append(float(call_price))
-
-        return put_prices, call_prices, unique_strikes, real_dte
-
     def get_equal_term_structure(self, strike):
         """
         This method returns a list of tuples where each tuple has a put and a call OptionContract in it.
@@ -373,7 +329,11 @@ class OptionChain:
 
         return prices, strikes, dtes[0]
     
-    def get_equal_skew_prices(self, exp: str = None, dte: int = None, max_days_diff: int = 4, mid_price = True):
+    def get_equal_skew_prices_old(self, exp: str = None, dte: int = None, max_days_diff: int = 4, mid_price = True):
+        """
+        This is out old version of getting equal skew prices the updated one is below
+        We will probably delete this later
+        """
         put_call_options = self.get_equal_skew(exp, dte, max_days_diff)
 
         if mid_price == True:
@@ -396,6 +356,50 @@ class OptionChain:
             put_prices, call_prices, strikes, dtes = zip(*[(put.price, call.price, put.strike, put.dte) for put, call in put_call_options])
 
         return put_prices, call_prices, strikes, dtes
+
+    def get_equal_skew_prices(self, dte: int = None, max_days_diff: int = 4, r: float = 0.04, q: float = 0):
+        """
+        This method gets a list of call and put prices across skew for a certain expiration.
+        Notes: We do not use a parameter for exp only for dte.
+               We look for both put and call prices at a certain strike and if one is not found we use put call parity to approximate the missing price
+        """
+
+        exp_data = self.get_exp_from_dte(dte, max_days_diff)
+        if exp_data is None:
+            return []  # or raise ValueError
+        exp = exp_data[0]
+        real_dte = exp_data[2]
+        T = real_dte / 365
+
+        keys = self.skew_data.get(exp, [])
+        unique_strikes = sorted(set(key[1] for key in keys))
+
+        put_prices = []
+        call_prices = []
+
+        for strike in unique_strikes:
+            call_option_node = self.option_nodes.get((exp, strike, "call"))
+            put_option_node = self.option_nodes.get((exp, strike, "put"))
+
+            has_call = call_option_node is not None
+            has_put = put_option_node is not None
+
+            if has_call and has_put:
+                call_price = call_option_node.mid_price if call_option_node.mid_price != 0 else call_option_node.price
+                put_price = put_option_node.mid_price if put_option_node.mid_price != 0 else put_option_node.price
+
+            elif has_call:
+                call_price = call_option_node.mid_price if call_option_node.mid_price != 0 else call_option_node.price
+                put_price = call_price - self.S * np.exp(-q * T) + strike * np.exp(-r * T)
+
+            elif has_put:
+                put_price = put_option_node.mid_price if put_option_node.mid_price != 0 else put_option_node.price
+                call_price = put_price + self.S * np.exp(-q * T) - strike * np.exp(-r * T)
+
+            put_prices.append(float(put_price))
+            call_prices.append(float(call_price))
+
+        return put_prices, call_prices, unique_strikes, real_dte
     
     def get_equal_term_structure_prices(self, strike, mid_price = True):
         options_term_structure = self.get_equal_term_structure(strike)
