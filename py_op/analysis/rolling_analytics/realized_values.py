@@ -154,7 +154,7 @@ def rolling_spot_atm_iv_stats(ticker: str, start_date: str, end_date: str, dte: 
     return betas, covs, corrs, iv_dates[window:]
 
 def rolling_spot_var_swap_stats(ticker: str, start_date: str, end_date: str, dte: int, window: int = 30, intercept: bool = False, r: float = 0, eps: float = 1e-12):
-    ivs, iv_dates, spot_prices = RollingVolatility(ticker, start_date, end_date).constant_maturity_variance_swap(dte, r)
+    ivs, iv_dates, spot_prices = RollingVolatility(ticker, start_date, end_date).constant_maturity_variance_swap_fixed_leg(dte, r)
     ivs, spot_prices = np.array(ivs), np.array(spot_prices)
 
     returns = np.log(spot_prices[1:] / spot_prices[:-1])

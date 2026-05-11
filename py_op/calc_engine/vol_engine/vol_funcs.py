@@ -1,6 +1,6 @@
 import numpy as np
 
-def variance_swap_approximation(S, put_prices, call_prices, strikes, dte, r):
+def variance_swap_fixed_leg(S, put_prices, call_prices, strikes, dte, r):
     """
     This function should use data from option_chain.get_equal_skew_prices()
     Important do not pass in a dte/365
@@ -41,7 +41,85 @@ def variance_swap_approximation(S, put_prices, call_prices, strikes, dte, r):
     vix = np.sqrt(sigma_2_new)
     return vix
 
-def skew_swap_approximation(S, put_prices, call_prices, strikes, dte):
+def variance_swap_fixed_leg_neuberger(S, put_prices, call_prices, strikes, dte, r = 0.04):
+    """
+    This is the variance swap contract from Neurbergers paper eq (23)
+    """
+
+    strikes = np.asarray(strikes, dtype=float)
+    put_prices = np.asarray(put_prices, dtype=float)
+    call_prices = np.asarray(call_prices, dtype=float)
+
+    # Sort everything by strike just in case
+    idx = np.argsort(strikes)
+    strikes = strikes[idx]
+    put_prices = put_prices[idx]
+    call_prices = call_prices[idx]
+
+    T = dte / 365.0
+    put_sum = 0
+    call_sum = 0
+
+    for i in range(1, len(strikes) - 1):
+        K = strikes[i]
+
+        # Central-difference strike spacing
+        dK = (strikes[i + 1] - strikes[i - 1]) / 2.0
+
+        if K < S:
+            Q = put_prices[i] / (np.exp(-r*T) * K ** 2)
+            put_sum += Q * dK
+        elif K > S:
+            Q = call_prices[i] / (np.exp(-r*T) * K ** 2)
+            call_sum += Q * dK
+        else:
+            Q = 0.0
+
+    var_swap = 2*put_sum + 2*call_sum
+    return var_swap
+
+def entropy_contract_approximation(S, put_prices, call_prices, strikes, dte, r = 0.04):
+    """
+    This is the entropy contract from Neurbergers skew risk premium paper eq (24)
+    """
+
+    strikes = np.asarray(strikes, dtype=float)
+    put_prices = np.asarray(put_prices, dtype=float)
+    call_prices = np.asarray(call_prices, dtype=float)
+
+    # Sort everything by strike just in case
+    idx = np.argsort(strikes)
+    strikes = strikes[idx]
+    put_prices = put_prices[idx]
+    call_prices = call_prices[idx]
+
+    T = dte / 365.0
+    put_sum = 0
+    call_sum = 0
+
+    F = np.exp(r*T)
+
+    for i in range(1, len(strikes) - 1):
+        K = strikes[i]
+
+        dK = (strikes[i + 1] - strikes[i - 1]) / 2.0
+
+        if K < S:
+            Q = put_prices[i] / (np.exp(-r*T) * K * F)
+            put_sum += Q * dK
+        elif K > S:
+            Q = call_prices[i] / (np.exp(-r*T) * K * F)
+            call_sum += Q * dK
+        else:
+            Q = 0.0
+
+    entropy_contract = 2*put_sum + 2*call_sum
+    return entropy_contract
+
+def skew_swap_fixed_leg_peter_lee(S, put_prices, call_prices, strikes, dte):
+    """
+    This function calculates the skew swap strike given by (6) in Peter Lee's paper
+    """
 
     strikes = np.asarray(strikes, dtype=float)
     put_prices = np.asarray(put_prices, dtype=float)
@@ -76,6 +154,48 @@ def skew_swap_approximation(S, put_prices, call_prices, strikes, dte):
 
     Ks = (2.0 / (T * S)) * ks_sum
     return Ks
+
+def skew_swap_fixed_leg_neuberger(S, put_prices, call_prices, strikes, dte, r = 0.04):
+    """
+    This function calculates the skew swap strike given by (13) in Neurberger paper
+    """
+
+    strikes = np.asarray(strikes, dtype=float)
+    put_prices = np.asarray(put_prices, dtype=float)
+    call_prices = np.asarray(call_prices, dtype=float)
+
+    # Sort everything by strike just in case
+    idx = np.argsort(strikes)
+    strikes = strikes[idx]
+    put_prices = put_prices[idx]
+    call_prices = call_prices[idx]
+
+    T = dte / 365.0
+    F = S * np.exp(r*T)
+
+    put_side_sum = 0
+    call_side_sum = 0
+
+    for i in range(1, len(strikes) - 1):
+        K = strikes[i]
+
+        # Central-difference strike spacing
+        dK = (strikes[i + 1] - strikes[i - 1]) / 2.0
+
+        # Equation (6): use puts for K < S0, calls for K > S0
+        # At K = S0, integrand is zero anyway since (S0 - K) = 0
+        if K < S:
+            Q = put_prices[i] * (F - K) / (F * K ** 2) 
+            put_side_sum += Q * dK
+        elif K > S:
+            Q = call_prices[i] * (K - F) / (F * K ** 2)
+            call_side_sum += Q * dK
+        else:
+            Q = 0.0
+
+    Ks = (6.0 / np.exp(-r*T)) * (call_side_sum - put_side_sum)
+    return Ks
+
 
 def linear_interpolated_iv_v1(iv1, iv2, dte1, dte2, target_date):
     """

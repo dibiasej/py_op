@@ -84,11 +84,6 @@ class RollingGVV(RollingAnalytics):
 
             put_iv,  K_put  = float(skew[idx_put]),  float(strikes[idx_put])
             call_iv, K_call = float(skew[idx_call]), float(strikes[idx_call])
-            print(f"skew {skew}, strikes {strikes}")
-            print(f"put iv: {put_iv}")
-            print(f"call iv: {call_iv}")
-            print(f"K put: {K_put}")
-            print(f"K call: {K_call}\n")
             yield put_iv, call_iv, K_put, K_call, spot, date
 
 

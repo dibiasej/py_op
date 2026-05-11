@@ -4,7 +4,7 @@ from py_op.data.builders.option_chain_builder import create_chain_series
 from py_op.calc_engine.vol_engine.iv_calc import RootFinder
 from py_op.utils.date_utils import find_bracketing_dtes
 from py_op.calc_engine.misc_funcs.put_call_parity import implied_rate
-from py_op.calc_engine.vol_engine.vol_funcs import variance_swap_approximation, linear_interpolated_iv_v1, forward_volatility
+from py_op.calc_engine.vol_engine.vol_funcs import variance_swap_fixed_leg, linear_interpolated_iv_v1, forward_volatility
 from py_op.calc_engine.greeks.analytical_greeks import AnalyticalDelta
 from py_op.calc_engine.vol_engine.iv_calc import SkewCalculator
 
@@ -38,7 +38,7 @@ class RollingTermStructure(RollingAnalytics):
     def __init__(self, ticker: str, start_date: str, end_date: str, steps: int = 1, iv_calc = RootFinder()) -> None:
         super().__init__(ticker, start_date, end_date, steps, iv_calc)
 
-    def _interpolated_variance_swap(self, chain, target_dte: int, r: float = 0):
+    def _interpolated_variance_swap_fixed_leg(self, chain, target_dte: int, r: float = 0):
         S = chain.S
         dte_list = chain.get_common_dtes()
         dte_lo, dte_hi = find_bracketing_dtes(dte_list, target_dte)
@@ -48,13 +48,13 @@ class RollingTermStructure(RollingAnalytics):
 
         if dte_hi is None:
             put_prices, call_prices, strikes, actual_dtes = chain.get_equal_skew_prices(dte=dte_lo, max_days_diff=0)
-            return variance_swap_approximation(S, put_prices, call_prices, strikes, actual_dtes[0], r)
+            return variance_swap_fixed_leg(S, put_prices, call_prices, strikes, actual_dtes[0], r)
 
         put_prices_lo, call_prices_lo, strikes_lo, actual_dtes_lo = chain.get_equal_skew_prices(dte=dte_lo, max_days_diff=0)
         put_prices_hi, call_prices_hi, strikes_hi, actual_dtes_hi = chain.get_equal_skew_prices(dte=dte_hi, max_days_diff=0)
 
-        var_lo = variance_swap_approximation(S, put_prices_lo, call_prices_lo, strikes_lo, actual_dtes_lo[0], r)
-        var_hi = variance_swap_approximation(S, put_prices_hi, call_prices_hi, strikes_hi, actual_dtes_hi[0], r)
+        var_lo = variance_swap_fixed_leg(S, put_prices_lo, call_prices_lo, strikes_lo, actual_dtes_lo[0], r)
+        var_hi = variance_swap_fixed_leg(S, put_prices_hi, call_prices_hi, strikes_hi, actual_dtes_hi[0], r)
 
         T_lo = actual_dtes_lo[0] / 365
         T_hi = actual_dtes_hi[0] / 365
@@ -62,15 +62,15 @@ class RollingTermStructure(RollingAnalytics):
 
         return linear_interpolated_iv_v1(var_lo, var_hi, T_lo, T_hi, T_target)
 
-    def _variance_swap_generator(self, dte1: int = 30, dte2: int = 60, r: float = 0):
+    def _variance_swap_fixed_leg_generator(self, dte1: int = 30, dte2: int = 60, r: float = 0):
         """
         Yields one observation at a time:
             (close_date, var_swap1, var_swap2)
         where var_swap1 and var_swap2 are constant-maturity variance swaps.
         """
         for chain in self.chain_series:
-            var_swap1 = self._interpolated_variance_swap(chain, dte1, r)
-            var_swap2 = self._interpolated_variance_swap(chain, dte2, r)
+            var_swap1 = self._interpolated_variance_swap_fixed_leg(chain, dte1, r)
+            var_swap2 = self._interpolated_variance_swap_fixed_leg(chain, dte2, r)
 
             if var_swap1 is None or var_swap2 is None:
                 continue
@@ -81,7 +81,7 @@ class RollingTermStructure(RollingAnalytics):
         relative_premias, dates = [], []
         T1, T2 = dte1/364, dte2/364
 
-        for date, var_swap1, var_swap2 in self._variance_swap_generator(dte1, dte2, r):
+        for date, var_swap1, var_swap2 in self._variance_swap_fixed_leg_generator(dte1, dte2, r):
 
             if normalized:
 
@@ -103,7 +103,7 @@ class RollingTermStructure(RollingAnalytics):
         term_premias, dates = [], []
         T1, T2 = dte1/364, dte2/364
 
-        for date, var_swap1, var_swap2 in self._variance_swap_generator(dte1, dte2, r):
+        for date, var_swap1, var_swap2 in self._variance_swap_fixed_leg_generator(dte1, dte2, r):
 
             if normalized:
 
@@ -123,7 +123,7 @@ class RollingTermStructure(RollingAnalytics):
         """
         forward_factor, dates = [], []
 
-        for date, var_swap1, var_swap2 in self._variance_swap_generator(dte1, dte2, r):
+        for date, var_swap1, var_swap2 in self._variance_swap_fixed_leg_generator(dte1, dte2, r):
             forward_vol = forward_volatility(var_swap1, var_swap2, dte1, dte2)
             forward_factor.append(forward_vol)
             dates.append(date)
@@ -136,7 +136,7 @@ class RollingTermStructure(RollingAnalytics):
         """
         forward_factor, dates = [], []
 
-        for date, var_swap1, var_swap2 in self._variance_swap_generator(dte1, dte2, r):
+        for date, var_swap1, var_swap2 in self._variance_swap_fixed_leg_generator(dte1, dte2, r):
             forward_vol = forward_volatility(var_swap1, var_swap2, dte1, dte2)
             forward_factor.append(var_swap1/forward_vol)
             dates.append(date)
@@ -193,8 +193,8 @@ class RollingSkew(RollingAnalytics):
 
             else:
 
-                put_prices, call_prices, strikes, actual_dtes = chain.get_equal_skew_prices(dte=target_dte, max_days_diff=max_days_diff)
-                actual_dte = actual_dtes[0]
+                put_prices, call_prices, strikes, actual_dte = chain.get_equal_skew_prices(dte=target_dte, max_days_diff=max_days_diff)
+                actual_dte = actual_dte
 
             strikes = np.array(strikes, dtype=float)
 
@@ -361,7 +361,7 @@ class RollingVolatility(RollingAnalytics):
 
         return ivs, dates, spots
     
-    def constant_maturity_variance_swap(self, target_dte: int, r: float = 0):
+    def constant_maturity_variance_swap_fixed_leg(self, target_dte: int, r: float = 0):
 
         var_swaps, dates, spots = [], [], []
 
@@ -377,18 +377,18 @@ class RollingVolatility(RollingAnalytics):
 
             if dte_hi is None:
                 put_prices, call_prices, strikes, actual_dtes = chain.get_equal_skew_prices(dte=dte_lo, max_days_diff=0)
-                interpolated_var_swap = variance_swap_approximation(S, put_prices, call_prices, strikes, actual_dtes[0], r)
+                interpolated_var_swap = variance_swap_fixed_leg(S, put_prices, call_prices, strikes, actual_dtes, r)
 
             else:
 
                 put_prices_lo, call_prices_lo, strikes_lo, actual_dtes_lo = chain.get_equal_skew_prices(dte=dte_lo, max_days_diff=0)
                 put_prices_hi, call_prices_hi, strikes_hi, actual_dtes_hi = chain.get_equal_skew_prices(dte=dte_hi, max_days_diff=0)
 
-                var_lo = variance_swap_approximation(S, put_prices_lo, call_prices_lo, strikes_lo, actual_dtes_lo[0], r)
-                var_hi = variance_swap_approximation(S, put_prices_hi, call_prices_hi, strikes_hi, actual_dtes_hi[0], r)
+                var_lo = variance_swap_fixed_leg(S, put_prices_lo, call_prices_lo, strikes_lo, actual_dtes_lo, r)
+                var_hi = variance_swap_fixed_leg(S, put_prices_hi, call_prices_hi, strikes_hi, actual_dtes_hi, r)
 
-                T_lo = actual_dtes_lo[0] / 365
-                T_hi = actual_dtes_hi[0] / 365
+                T_lo = actual_dtes_lo / 365
+                T_hi = actual_dtes_hi / 365
                 T_target = target_dte / 365
 
                 interpolated_var_swap = linear_interpolated_iv_v1(var_lo, var_hi, T_lo, T_hi, T_target)

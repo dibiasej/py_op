@@ -3,7 +3,7 @@ from datetime import datetime
 from dateutil.relativedelta import relativedelta
 
 from py_op.calc_engine.vol_engine.iv_calc import ImpliedVolatility, TermStructureCalculator
-from py_op.calc_engine.vol_engine.vol_funcs import variance_swap_approximation
+from py_op.calc_engine.vol_engine.vol_funcs import variance_swap_fixed_leg
 from py_op.analysis.rolling_analytics.realized_volatility import get_realized_vol_strategy
 from py_op.data.builders.option_chain_builder import create_chain
 """
@@ -22,7 +22,7 @@ def variance_swap(ticker: str, close_date: str, moneyness=.5, dtes: list[int] = 
 
     for dte in dtes:
         put_prices, call_prices, strikes, _ = chain.get_equal_skew_prices(dte=dte, max_days_diff=20)
-        var_swap = variance_swap_approximation(S, put_prices, call_prices, strikes, dte, r)
+        var_swap = variance_swap_fixed_leg(S, put_prices, call_prices, strikes, dte, r)
         var_swaps.append(var_swap)
 
     return var_swaps, dtes
