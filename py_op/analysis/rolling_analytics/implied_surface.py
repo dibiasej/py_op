@@ -397,7 +397,7 @@ class RollingVolatility(RollingAnalytics):
         
         return ivs, dates, spots
     
-    def fixed_strike_iv(self, strike: int, exp: str = None, dte: int = None, max_diff_days: int = 5, q: float = 0):
+    def fixed_strike_floating_maturity_iv(self, strike: int, exp: str = None, dte: int = None, max_diff_days: int = 5, q: float = 0):
         if dte is not None:
             exp_data = self.chain_series[0].get_exp_from_dte(mat_days=dte, max_diff_days = max_diff_days)
             exp = exp_data[0]
@@ -430,6 +430,10 @@ class RollingVolatility(RollingAnalytics):
             idx += 1
         
         return ivs, dates, spots
+    
+
+    def fixed_strike_constant_maturity_iv(self, strike: int, exp: str = None, dte: int = None, max_diff_days: int = 5, q: float = 0):
+        pass
 
 
     def constant_maturity_variance_swap_fixed_leg(self, target_dte: int, r: float = 0):
