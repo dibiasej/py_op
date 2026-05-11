@@ -357,21 +357,25 @@ class OptionChain:
 
         return put_prices, call_prices, strikes, dtes
 
-    def get_equal_skew_prices(self, dte: int = None, max_days_diff: int = 4, r: float = 0.04, q: float = 0):
+    def get_equal_skew_prices(self, exp: str = None, dte: int = None, max_days_diff: int = 4, r: float = 0.04, q: float = 0):
         """
         This method gets a list of call and put prices across skew for a certain expiration.
         Notes: We do not use a parameter for exp only for dte.
                We look for both put and call prices at a certain strike and if one is not found we use put call parity to approximate the missing price
         """
 
-        exp_data = self.get_exp_from_dte(dte, max_days_diff)
-        if exp_data is None:
-            return []  # or raise ValueError
-        exp = exp_data[0]
-        real_dte = exp_data[2]
-        T = real_dte / 365
+        if dte is not None:
+            exp_data = self.get_exp_from_dte(dte, max_days_diff)
+            if exp_data is None:
+                return []  # or raise ValueError
+            exp = exp_data[0]
 
+        elif exp is None:
+            raise ValueError("DTE or expiration must be defined")
+        
         keys = self.skew_data.get(exp, [])
+        real_dte = self.get_option(keys[0][1], keys[0][2], exp).dte
+        T = real_dte/365
         unique_strikes = sorted(set(key[1] for key in keys))
 
         put_prices = []

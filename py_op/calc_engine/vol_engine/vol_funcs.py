@@ -41,7 +41,7 @@ def variance_swap_fixed_leg(S, put_prices, call_prices, strikes, dte, r):
     vix = np.sqrt(sigma_2_new)
     return vix
 
-def variance_swap_fixed_leg_neuberger(S, put_prices, call_prices, strikes, dte, r = 0.04):
+def variance_swap_fixed_leg_neuberger(S, put_prices, call_prices, strikes, dte, r = 0.04, q = 0):
     """
     This is the variance swap contract from Neurbergers paper eq (23)
     """
@@ -60,16 +60,18 @@ def variance_swap_fixed_leg_neuberger(S, put_prices, call_prices, strikes, dte, 
     put_sum = 0
     call_sum = 0
 
+    F = S * np.exp((r - q) * T)
+
     for i in range(1, len(strikes) - 1):
         K = strikes[i]
 
         # Central-difference strike spacing
         dK = (strikes[i + 1] - strikes[i - 1]) / 2.0
 
-        if K < S:
+        if K < F:
             Q = put_prices[i] / (np.exp(-r*T) * K ** 2)
             put_sum += Q * dK
-        elif K > S:
+        elif K > F:
             Q = call_prices[i] / (np.exp(-r*T) * K ** 2)
             call_sum += Q * dK
         else:
@@ -97,17 +99,17 @@ def entropy_contract_approximation(S, put_prices, call_prices, strikes, dte, r =
     put_sum = 0
     call_sum = 0
 
-    F = np.exp(r*T)
+    F = S * np.exp(r*T)
 
     for i in range(1, len(strikes) - 1):
         K = strikes[i]
 
         dK = (strikes[i + 1] - strikes[i - 1]) / 2.0
 
-        if K < S:
+        if K < F:
             Q = put_prices[i] / (np.exp(-r*T) * K * F)
             put_sum += Q * dK
-        elif K > S:
+        elif K > F:
             Q = call_prices[i] / (np.exp(-r*T) * K * F)
             call_sum += Q * dK
         else:

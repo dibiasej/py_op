@@ -1,7 +1,7 @@
 import numpy as np
 
 from py_op.data.builders.option_chain_builder import create_chain_series
-from py_op.calc_engine.vol_engine.iv_calc import RootFinder
+from py_op.calc_engine.vol_engine.iv_calc import InverseGaussian
 from py_op.utils.date_utils import find_bracketing_dtes
 from py_op.calc_engine.misc_funcs.put_call_parity import implied_rate
 from py_op.calc_engine.vol_engine.vol_funcs import variance_swap_fixed_leg, linear_interpolated_iv_v1, forward_volatility
@@ -14,7 +14,7 @@ from py_op.calc_engine.vol_engine.iv_calc import SkewCalculator
 
 class RollingAnalytics:
 
-    def __init__(self, ticker: str, start_date: str, end_date:str, steps: int = 1, iv_calc = RootFinder()) -> None:
+    def __init__(self, ticker: str, start_date: str, end_date:str, steps: int = 1, iv_calc = InverseGaussian()) -> None:
         self.ticker = ticker
         self.start_date = start_date
         self.end_date = end_date
@@ -35,7 +35,7 @@ class RollingTermStructure(RollingAnalytics):
     We have a lot of the same types of calculations in this, ex relative term premia and regular both use the same exact logic the ending formula is the only thing than changes
     so we should try to make a simpler version
     """
-    def __init__(self, ticker: str, start_date: str, end_date: str, steps: int = 1, iv_calc = RootFinder()) -> None:
+    def __init__(self, ticker: str, start_date: str, end_date: str, steps: int = 1, iv_calc = InverseGaussian()) -> None:
         super().__init__(ticker, start_date, end_date, steps, iv_calc)
 
     def _interpolated_variance_swap_fixed_leg(self, chain, target_dte: int, r: float = 0):
@@ -164,7 +164,7 @@ class RollingSkew(RollingAnalytics):
     We need to work on the methods involved with delta in this class, we should try using skew_calculator.equal_parity_ivs, instead of otm ivs
     """
 
-    def __init__(self, ticker: str, start_date: str, end_date: str, steps: int = 1, iv_calc=RootFinder(), parity_iv_relation = False, use_otm_prices = False) -> None:
+    def __init__(self, ticker: str, start_date: str, end_date: str, steps: int = 1, iv_calc=InverseGaussian(), parity_iv_relation = False, use_otm_prices = False) -> None:
         
         self.parity_iv_relation = parity_iv_relation
         self.use_otm_prices = use_otm_prices
@@ -300,7 +300,7 @@ class RollingKurtosis:
 
 class RollingVolatility(RollingAnalytics):
 
-    def __init__(self, ticker: str, start_date: str, end_date: str, steps: int = 1, iv_calc = RootFinder()) -> None:
+    def __init__(self, ticker: str, start_date: str, end_date: str, steps: int = 1, iv_calc = InverseGaussian()) -> None:
         super().__init__(ticker, start_date, end_date, steps, iv_calc)
 
     def constant_maturity_atm_iv(self, target_dte: int, q: float = 0.0):
@@ -361,6 +361,77 @@ class RollingVolatility(RollingAnalytics):
 
         return ivs, dates, spots
     
+    def fixed_strike_atm_iv(self, exp: str = None, dte: int = None, max_diff_days: int = 5, q: float = 0):
+        """
+        This function gets atm iv at an initial date and then gets the same strike iv going forward.
+        It is important to note this returns a time series where the initial first iv is atm, but the second value/iv in the series will not be
+          because spot most likely deviated from the atm strike.
+        Note: For anything fixed strike it is best to use exp
+        """
+        if dte is not None:
+            exp_data = self.chain_series[0].get_exp_from_dte(mat_days=dte, max_diff_days = max_diff_days)
+            exp = exp_data[0]
+
+        #assert exp >= self.end_date, ("Expiration date must be after end_date")
+
+        S = self.chain_series[0].S
+        ivs, dates, spots = [], [], []
+        idx = 0
+
+        #for chain in self.chain_series:
+        while idx < len(self.chain_series) and self.chain_series[idx].close_date <= exp:
+            cur_chain = self.chain_series[idx]
+
+            call = cur_chain.get_option(S, otype="call", exp = exp)
+            put = cur_chain.get_option(S, otype="put", exp = exp)
+
+            real_dte = put.dte
+            T = real_dte/365
+
+            i_rate = implied_rate(call.price, put.price, S, put.strike, T)
+            iv = self.iv_calc.calculate(put.price, S, put.strike, T, r=i_rate, otype="put", q=q)
+            ivs.append(iv)
+            dates.append(cur_chain.close_date)
+            spots.append(cur_chain.S)
+            idx += 1
+        
+        return ivs, dates, spots
+    
+    def fixed_strike_iv(self, strike: int, exp: str = None, dte: int = None, max_diff_days: int = 5, q: float = 0):
+        if dte is not None:
+            exp_data = self.chain_series[0].get_exp_from_dte(mat_days=dte, max_diff_days = max_diff_days)
+            exp = exp_data[0]
+
+        ivs, dates, spots = [], [], []
+        idx = 0
+
+        #for chain in self.chain_series:
+        while idx < len(self.chain_series) and self.chain_series[idx].close_date <= exp:
+            cur_chain = self.chain_series[idx]
+
+            """I need to do the following
+                1. if only call strike exists use call iv.
+                2. if only put strike exists use put iv
+                3. if neither exist return error
+            """
+
+            call = cur_chain.get_option(strike, otype="call", exp = exp)
+            put = cur_chain.get_option(strike, otype="put", exp = exp)
+
+            real_dte = put.dte
+            T = real_dte/365
+            print(f"strike: {strike}, put.strike: {put.strike}, call.strike: {call.strike}")
+
+            i_rate = implied_rate(call.price, put.price, strike, put.strike, T)
+            iv = self.iv_calc.calculate(put.price, strike, put.strike, T, r=i_rate, otype="put", q=q)
+            ivs.append(iv)
+            dates.append(cur_chain.close_date)
+            spots.append(cur_chain.S)
+            idx += 1
+        
+        return ivs, dates, spots
+
+
     def constant_maturity_variance_swap_fixed_leg(self, target_dte: int, r: float = 0):
 
         var_swaps, dates, spots = [], [], []
@@ -407,7 +478,7 @@ Old Code
 
 class RollingSkewOld(RollingAnalytics):
 
-    def __init__(self, ticker: str, start_date: str, end_date: str, steps: int = 1, iv_calc = RootFinder()) -> None:
+    def __init__(self, ticker: str, start_date: str, end_date: str, steps: int = 1, iv_calc = InverseGaussian()) -> None:
         super().__init__(ticker, start_date, end_date, steps, iv_calc)
 
     def implied_skew_moneyness(self, target_dte: int, moneyness: float=0.1, max_days_diff: int=20):
@@ -483,7 +554,7 @@ class RollingSkewOld(RollingAnalytics):
         """
         This gets the constant maturity 90% - 110% skew, the value is very similar to the implied_skew_moneyness so I might get rid of it
         """
-        rf = RootFinder()
+        rf = InverseGaussian()
         implied_skews, dates = [], []
 
         for chain in self.chain_series:
