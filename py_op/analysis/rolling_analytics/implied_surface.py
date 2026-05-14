@@ -361,7 +361,7 @@ class RollingVolatility(RollingAnalytics):
 
         return ivs, dates, spots
     
-    def fixed_strike_atm_iv(self, exp: str = None, dte: int = None, max_diff_days: int = 5, q: float = 0):
+    def fixed_strike_constant_exp_atm_iv(self, exp: str = None, dte: int = None, max_diff_days: int = 5, q: float = 0):
         """
         This function gets atm iv at an initial date and then gets the same strike iv going forward.
         It is important to note this returns a time series where the initial first iv is atm, but the second value/iv in the series will not be
@@ -397,7 +397,7 @@ class RollingVolatility(RollingAnalytics):
         
         return ivs, dates, spots
     
-    def fixed_strike_floating_maturity_iv(self, strike: int, exp: str = None, dte: int = None, max_diff_days: int = 5, q: float = 0):
+    def fixed_strike_constant_exp_iv(self, strike: int, exp: str = None, dte: int = None, max_diff_days: int = 5, r: float = 0.00, q: float = 0):
         if dte is not None:
             exp_data = self.chain_series[0].get_exp_from_dte(mat_days=dte, max_diff_days = max_diff_days)
             exp = exp_data[0]
@@ -409,21 +409,28 @@ class RollingVolatility(RollingAnalytics):
         while idx < len(self.chain_series) and self.chain_series[idx].close_date <= exp:
             cur_chain = self.chain_series[idx]
 
-            """I need to do the following
-                1. if only call strike exists use call iv.
-                2. if only put strike exists use put iv
-                3. if neither exist return error
-            """
-
             call = cur_chain.get_option(strike, otype="call", exp = exp)
             put = cur_chain.get_option(strike, otype="put", exp = exp)
 
             real_dte = put.dte
             T = real_dte/365
-            print(f"strike: {strike}, put.strike: {put.strike}, call.strike: {call.strike}")
 
-            i_rate = implied_rate(call.price, put.price, strike, put.strike, T)
-            iv = self.iv_calc.calculate(put.price, strike, put.strike, T, r=i_rate, otype="put", q=q)
+            if put.strike == strike and call.strike == strike:
+                call_price, put_price = call.price, put.price
+
+            elif put.strike == strike:
+                put_price = put.price
+                call_price = put.price + cur_chain.S - strike*np.exp(-r*T)
+
+            elif call.strike == strike:
+                call_price = call.price
+                put_price = call.price - cur_chain.S + strike*np.exp(-r*T)
+
+            else:
+                raise ValueError(f"Strike {strike} does not exist for exp {exp} for call or put for start date {self.start_date}")
+
+            i_rate = implied_rate(call_price, put_price, cur_chain.S, strike, T)
+            iv = self.iv_calc.calculate(put_price, cur_chain.S, strike, T, r=i_rate, otype="put", q=q)
             ivs.append(iv)
             dates.append(cur_chain.close_date)
             spots.append(cur_chain.S)
