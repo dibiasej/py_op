@@ -87,19 +87,19 @@ class RollingGVV(RollingAnalytics):
             yield put_iv, call_iv, K_put, K_call, spot, date
 
 
-    def vol_level(self, dte: float, r: float = 0.04, weights: bool = False):
+    def vol_level(self, dte: float, r: float = 0.04, weights: bool = True):
         dates, _, vol_levels, _, _, _, _ = self._implied_parameter_helper(dte, r, weights)
         return dates, vol_levels
 
-    def spot_vol_corr(self, dte: float, r: float = 0.04, weights: bool = False):
+    def spot_vol_corr(self, dte: float, r: float = 0.04, weights: bool = True):
         dates, _, _, spot_vol_corrs, _, _, _ = self._implied_parameter_helper(dte, r, weights)
         return dates, spot_vol_corrs
 
-    def vol_vol(self, dte: float, r: float = 0.04, weights: bool = False):
+    def vol_vol(self, dte: float, r: float = 0.04, weights: bool = True):
         dates, _, _, _, vol_vols, _, _ = self._implied_parameter_helper(dte, r, weights)
         return dates, vol_vols
 
-    def skew_curve(self, dte: float, r: float = 0.04, weights: bool = False):
+    def skew_curve(self, dte: float, r: float = 0.04, weights: bool = True):
         dates, _, _, _, _, skews, strikes = self._implied_parameter_helper(dte, r, weights)
         return dates, skews, strikes
     
@@ -113,7 +113,7 @@ class RollingGVV(RollingAnalytics):
 
         return implied_skews, dates
 
-    def implied_skew_delta(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = False, put_delta: float = -0.25, call_delta: float = 0.25):
+    def implied_skew_delta(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True, put_delta: float = -0.25, call_delta: float = 0.25):
 
         implied_skews, dates = [], []
         for put_iv, call_iv, K_put, K_call, spot, date in self._select_skew_points(dte, r, q, weights, mode="delta", put_delta=put_delta, call_delta=call_delta):
@@ -123,7 +123,7 @@ class RollingGVV(RollingAnalytics):
 
         return implied_skews, dates
 
-    def implied_skew_fixed_strike_moneyness(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = False, put_moneyness: float = 0.1, call_moneyness: float = 0.1):
+    def implied_skew_fixed_strike_moneyness(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True, put_moneyness: float = 0.1, call_moneyness: float = 0.1):
         """
         We call it Fixed strike because this is the convention Collin Bennet uses in his book, we may change the name in the future
         Use put_moneyness .1 and call 0 to get Collin Bennets exact definition

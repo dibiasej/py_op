@@ -61,8 +61,8 @@ def check_tickers():
 
 
 def main():
-    #build_spot_table_main()
-    #conn = get_connection(OPTION_DB_DIR)
+    # build_spot_table_main()
+    # conn = get_connection(OPTION_DB_DIR)
 
 
     # time.sleep(60*60*2)

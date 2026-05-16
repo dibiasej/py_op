@@ -329,7 +329,8 @@ class RollingVolatility(RollingAnalytics):
 
                 call = chain.get_option(S, otype="call", dte=dte_lo, max_days_diff = 0)
                 put  = chain.get_option(S, otype="put",  dte=dte_lo, max_days_diff = 0)
-
+                print(f"In first if:")
+                print(f"spot: {S} put strike: {put.strike} call strike: {call.strike}")
                 T = put.dte / 365  # use the contract's DTE to be consistent with your objects
                 i_rate = implied_rate(call.price, put.price, S, put.strike, T)
 
@@ -343,7 +344,9 @@ class RollingVolatility(RollingAnalytics):
 
                 call_hi = chain.get_option(S, otype="call", dte=dte_hi, max_days_diff = 0)
                 put_hi = chain.get_option(S, otype="put", dte=dte_hi, max_days_diff = 0)
-
+                print(f"In second if:")
+                print(f"spot: {S} put lo strike: {put_lo.strike} call lo strike: {call_lo.strike}")
+                print(f"spot: {S} put hi strike: {put_hi.strike} call hi strike: {call_hi.strike}")
                 T1 = put_lo.dte / 365
                 T2 = put_hi.dte / 365
                 i_rate1 = implied_rate(call_lo.price, put_lo.price, S, put_lo.strike, T1)
@@ -439,8 +442,64 @@ class RollingVolatility(RollingAnalytics):
         return ivs, dates, spots
     
 
-    def fixed_strike_constant_maturity_iv(self, strike: int, exp: str = None, dte: int = None, max_diff_days: int = 5, q: float = 0):
-        pass
+    def fixed_strike_constant_maturity_iv(self, strike: int, target_dte: int, q: float = 0):
+        ivs, dates, spots = [], [], []
+        t_target = target_dte / 365
+
+        for chain in self.chain_series:
+            dte_list = chain.get_common_dtes()
+            dte_lo, dte_hi = find_bracketing_dtes(dte_list, target_dte)
+
+            S = chain.S
+            spots.append(S)
+
+            # guard: if chain has no usable DTEs
+            if dte_lo is None and dte_hi is None:
+                continue
+
+            # exact match or clamped
+            if dte_hi is None:
+
+                call = chain.get_option(strike, otype="call", dte=dte_lo, max_days_diff = 0)
+                put  = chain.get_option(strike, otype="put",  dte=dte_lo, max_days_diff = 0)
+                print(f"In first if:")
+                print(f"strike: {strike} put strike: {put.strike} call strike: {call.strike}")
+
+                T = put.dte / 365  # use the contract's DTE to be consistent with your objects
+                i_rate = implied_rate(call.price, put.price, S, put.strike, T)
+
+                iv = self.iv_calc.calculate(put.price, S, put.strike, T, r=i_rate, otype="put", q=q)
+
+            # interpolate between two expiries
+            else:
+
+                call_lo = chain.get_option(strike, otype="call", dte=dte_lo, max_days_diff = 0)
+                put_lo = chain.get_option(strike, otype="put", dte=dte_lo, max_days_diff = 0)
+
+                call_hi = chain.get_option(strike, otype="call", dte=dte_hi, max_days_diff = 0)
+                put_hi = chain.get_option(strike, otype="put", dte=dte_hi, max_days_diff = 0)
+
+                print(f"In second if:")
+                print(f"strike: {strike} put lo strike: {put_lo.strike} call lo strike: {call_lo.strike}")
+                print(f"strike: {strike} put hi strike: {put_hi.strike} call hi strike: {call_hi.strike}")
+
+                T1 = put_lo.dte / 365
+                T2 = put_hi.dte / 365
+                i_rate1 = implied_rate(call_lo.price, put_lo.price, S, put_lo.strike, T1)
+                i_rate2 = implied_rate(call_hi.price, put_hi.price, S, put_hi.strike, T2)
+
+                iv1 = self.iv_calc.calculate(put_lo.price, S, put_lo.strike, T1, r=i_rate1, otype="put", q=q)
+                iv2 = self.iv_calc.calculate(put_hi.price, S, put_hi.strike, T2, r=i_rate2, otype="put", q=q)
+
+                t1 = dte_lo / 365
+                t2 = dte_hi / 365
+                iv = linear_interpolated_iv_v1(iv1, iv2, t1, t2, t_target)
+            print("\n")
+
+            ivs.append(iv)
+            dates.append(chain.close_date)
+
+        return ivs, dates, spots
 
 
     def constant_maturity_variance_swap_fixed_leg(self, target_dte: int, r: float = 0):
