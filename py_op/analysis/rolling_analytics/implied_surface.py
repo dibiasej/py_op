@@ -401,6 +401,10 @@ class RollingVolatility(RollingAnalytics):
         return ivs, dates, spots
     
     def fixed_strike_constant_exp_iv(self, strike: int, exp: str = None, dte: int = None, max_diff_days: int = 5, r: float = 0.00, q: float = 0):
+        """
+        This function gives us iv at a certain strike over time where the dte changes, ex) t1 dte = 30, t2 = 28
+        So it gives us the iv for a certain option contract over time.
+        """
         if dte is not None:
             exp_data = self.chain_series[0].get_exp_from_dte(mat_days=dte, max_diff_days = max_diff_days)
             exp = exp_data[0]
@@ -442,7 +446,7 @@ class RollingVolatility(RollingAnalytics):
         return ivs, dates, spots
     
 
-    def fixed_strike_constant_maturity_iv(self, strike: int, target_dte: int, q: float = 0):
+    def fixed_strike_constant_maturity_iv(self, strike: int, target_dte: int, r: float = 0, q: float = 0):
         ivs, dates, spots = [], [], []
         t_target = target_dte / 365
 
@@ -462,39 +466,68 @@ class RollingVolatility(RollingAnalytics):
 
                 call = chain.get_option(strike, otype="call", dte=dte_lo, max_days_diff = 0)
                 put  = chain.get_option(strike, otype="put",  dte=dte_lo, max_days_diff = 0)
-                print(f"In first if:")
-                print(f"strike: {strike} put strike: {put.strike} call strike: {call.strike}")
+
+                if call.strike == strike and put.strike == strike:
+                    call_price = call.price
+                    put_price = put.price
+
+                elif put.strike == strike:
+                    put_price = put.price
+                    call_price = put.price + S - strike*np.exp(-r*T1)
+
+                elif call.strike == strike:
+                    call_price = call.price
+                    put_price = call.price - S + strike*np.exp(-r*T1)
 
                 T = put.dte / 365  # use the contract's DTE to be consistent with your objects
-                i_rate = implied_rate(call.price, put.price, S, put.strike, T)
+                i_rate = implied_rate(call_price, put_price, S, strike, T)
 
-                iv = self.iv_calc.calculate(put.price, S, put.strike, T, r=i_rate, otype="put", q=q)
+                iv = self.iv_calc.calculate(put_price, S, strike, T, r=i_rate, otype="put", q=q)
 
             # interpolate between two expiries
             else:
 
                 call_lo = chain.get_option(strike, otype="call", dte=dte_lo, max_days_diff = 0)
                 put_lo = chain.get_option(strike, otype="put", dte=dte_lo, max_days_diff = 0)
+                T1 = put_lo.dte / 365
+
+                if call_lo.strike == strike and put_lo.strike == strike:
+                    call_lo_price = call_lo.price
+                    put_lo_price = put_lo.price
+
+                elif put_lo.strike == strike:
+                    put_lo_price = put_lo.price
+                    call_lo_price = put_lo.price + S - strike*np.exp(-r*T1)
+
+                elif call_lo.strike == strike:
+                    call_lo_price = call_lo.price
+                    put_lo_price = call_lo.price - S + strike*np.exp(-r*T1)
 
                 call_hi = chain.get_option(strike, otype="call", dte=dte_hi, max_days_diff = 0)
                 put_hi = chain.get_option(strike, otype="put", dte=dte_hi, max_days_diff = 0)
-
-                print(f"In second if:")
-                print(f"strike: {strike} put lo strike: {put_lo.strike} call lo strike: {call_lo.strike}")
-                print(f"strike: {strike} put hi strike: {put_hi.strike} call hi strike: {call_hi.strike}")
-
-                T1 = put_lo.dte / 365
                 T2 = put_hi.dte / 365
-                i_rate1 = implied_rate(call_lo.price, put_lo.price, S, put_lo.strike, T1)
-                i_rate2 = implied_rate(call_hi.price, put_hi.price, S, put_hi.strike, T2)
 
-                iv1 = self.iv_calc.calculate(put_lo.price, S, put_lo.strike, T1, r=i_rate1, otype="put", q=q)
-                iv2 = self.iv_calc.calculate(put_hi.price, S, put_hi.strike, T2, r=i_rate2, otype="put", q=q)
+                if call_hi.strike == strike and put_hi.strike == strike:
+                    call_hi_price = call_hi.price
+                    put_hi_price = put_hi.price
+
+                elif put_hi.strike == strike:
+                    put_hi_price = put_hi.price
+                    call_hi_price = put_hi.price + S - strike*np.exp(-r*T2)
+
+                elif call_hi.strike == strike:
+                    call_hi_price = call_hi.price
+                    put_hi_price = call_hi.price - S + strike*np.exp(-r*T2)
+
+                i_rate1 = implied_rate(call_lo_price, put_lo_price, S, strike, T1)
+                i_rate2 = implied_rate(call_hi_price, put_hi_price, S, strike, T2)
+
+                iv1 = self.iv_calc.calculate(put_lo_price, S, strike, T1, r=i_rate1, otype="put", q=q)
+                iv2 = self.iv_calc.calculate(put_hi_price, S, strike, T2, r=i_rate2, otype="put", q=q)
 
                 t1 = dte_lo / 365
                 t2 = dte_hi / 365
                 iv = linear_interpolated_iv_v1(iv1, iv2, t1, t2, t_target)
-            print("\n")
 
             ivs.append(iv)
             dates.append(chain.close_date)
@@ -537,7 +570,7 @@ class RollingVolatility(RollingAnalytics):
             var_swaps.append(interpolated_var_swap)
 
         return var_swaps, dates, spots
-    
+
 
 """
 Old Code
