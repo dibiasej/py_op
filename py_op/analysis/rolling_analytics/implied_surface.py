@@ -329,8 +329,6 @@ class RollingVolatility(RollingAnalytics):
 
                 call = chain.get_option(S, otype="call", dte=dte_lo, max_days_diff = 0)
                 put  = chain.get_option(S, otype="put",  dte=dte_lo, max_days_diff = 0)
-                print(f"In first if:")
-                print(f"spot: {S} put strike: {put.strike} call strike: {call.strike}")
                 T = put.dte / 365  # use the contract's DTE to be consistent with your objects
                 i_rate = implied_rate(call.price, put.price, S, put.strike, T)
 
@@ -344,9 +342,7 @@ class RollingVolatility(RollingAnalytics):
 
                 call_hi = chain.get_option(S, otype="call", dte=dte_hi, max_days_diff = 0)
                 put_hi = chain.get_option(S, otype="put", dte=dte_hi, max_days_diff = 0)
-                print(f"In second if:")
-                print(f"spot: {S} put lo strike: {put_lo.strike} call lo strike: {call_lo.strike}")
-                print(f"spot: {S} put hi strike: {put_hi.strike} call hi strike: {call_hi.strike}")
+
                 T1 = put_lo.dte / 365
                 T2 = put_hi.dte / 365
                 i_rate1 = implied_rate(call_lo.price, put_lo.price, S, put_lo.strike, T1)
@@ -402,7 +398,7 @@ class RollingVolatility(RollingAnalytics):
     
     def fixed_strike_constant_exp_iv(self, strike: int, exp: str = None, dte: int = None, max_diff_days: int = 5, r: float = 0.00, q: float = 0):
         """
-        This function gives us iv at a certain strike over time where the dte changes, ex) t1 dte = 30, t2 = 28
+        This function gives us iv at a certain strike over time where the dte changes, ex) t1 dte = 30, t2 = 29
         So it gives us the iv for a certain option contract over time.
         """
         if dte is not None:

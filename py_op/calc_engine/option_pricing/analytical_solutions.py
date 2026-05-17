@@ -133,7 +133,7 @@ class SABRAnalytical(mu.SABRUtils):
         normal_vol = SABRAnalytical.normal_vol(S, K, T, sigma_0, alpha, beta, rho)
         return BachelierAnalytical().call(S, K, T, normal_vol, r)
     
-    @classmethod
+    @staticmethod
     def put(cls, S: float, K: int, T: float, sigma_0: float, alpha: float, rho: float, beta: float = 0.5, r: float = 0, q: float = 0):
         normal_vol = SABRAnalytical().normal_vol(S, K, T, sigma_0, alpha, beta, rho)
         return BachelierAnalytical().put(S, K, T, normal_vol, r)

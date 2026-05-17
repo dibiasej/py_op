@@ -2,10 +2,10 @@ import numpy as np
 from scipy.optimize import minimize
 from scipy.optimize import differential_evolution
 
-from calc_engine.option_pricing import analytical_solutions as an
-from calc_engine.option_pricing import FFT
-from calc_engine.option_pricing import simulation as sim
-from calc_engine.option_pricing.option_price_factory import OptionPriceFactory
+from py_op.calc_engine.option_pricing import analytical_solutions as an
+from py_op.calc_engine.option_pricing import FFT
+from py_op.calc_engine.option_pricing import simulation as sim
+from py_op.calc_engine.option_pricing.option_price_factory import OptionPriceFactory
 from . import error_functions as ef
 
 """
@@ -76,6 +76,9 @@ class MertonJumpDiffusionOptimizer(Optimizer):
 class SABROptimizer:
     """
     This is a very simple way to optimize sabr, later we will make this faster by using the method from the SABR paper we read.
+    Call the optimizer using; SABROptimizer(SABRAnalytical() , ErrorFunctionAdapter().sabr)
+    The optimizer method returns [instantaneous_vol, vol_vol, spot_vol_corr]
+     - For instantaneous_vol you need to divide by sqrt(S) to get in terms of log normal vol
     """
     
     def __init__(self, model: str, error_function = None):

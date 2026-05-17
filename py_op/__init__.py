@@ -7,6 +7,8 @@ from py_op.calc_engine.option_pricing import (
     simulation,
 )
 
+from py_op.calc_engine.calibration import model_optimization
+
 # IV + Skew tools (class-level exports)
 from py_op.calc_engine.vol_engine.iv_calc import (
     ImpliedVolatility,
