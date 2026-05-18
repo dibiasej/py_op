@@ -4,6 +4,7 @@ from py_op.data.price_data.process_price_data import get_close_prices, get_log_r
 from py_op.analysis.rolling_analytics.implied_surface import RollingVolatility
 from py_op.analysis.rolling_analytics.realized_volatility import get_realized_vol_strategy
 from py_op.utils import realized_volatility_utils as rv_utils
+from py_op.calc_engine.vol_engine.vol_funcs import variance_swap_fixed_leg_neuberger, entropy_contract_approximation
 
 """
 This module calculates all our realized metrics.
@@ -43,7 +44,7 @@ def realized_vol_of_vol(sig: np.ndarray[float], largest_lag: int):
 
 def rolling_realized_volatility(ticker: str, start: str, end: str, realized_vol_strategy: str = "close_to_close", realized_volatility_period: str = "M", freq: str = "D"):
     rvol, dates =  get_realized_vol_strategy(realized_vol_strategy).calculate(ticker, start, end, realized_volatility_period, freq)
-    return rvol
+    return rvol, dates
 
 def rolling_realized_skewness(ticker: str, start_date: str, end_date: str, realized_volatility_period: str = "M", freq: str = "D"):
     length_int = rv_utils.realized_volatility_period_length(realized_volatility_period, freq)
@@ -113,7 +114,7 @@ def rolling_realized_kurtosis(ticker: str, start_date: str, end_date: str, reali
 
     return kurtosis_vals[::-1], dates[length_int - 1:]
 
-def rolling_spot_atm_iv_stats(ticker: str, start_date: str, end_date: str, dte: int, window: int = 30, intercept: bool = False, eps: float = 1e-12):
+def rolling_spot_atm_iv_stats(ticker: str, start_date: str, end_date: str, dte: int, window: int = 21, intercept: bool = False, eps: float = 1e-12):
     """
     I Tested multiple versions of spot vol rolling statistics (Benn, Junsu, Euan) and they all give me the same values. This is the best version of the code.
     In the future we might turn this to class or strategy pattern similar to RealizedVol but for now this works very well.
@@ -187,6 +188,67 @@ def rolling_spot_var_swap_stats(ticker: str, start_date: str, end_date: str, dte
     corrs = np.asarray(corrs)
 
     return betas, covs, corrs, iv_dates[window:]
+
+def realized_skew_neurberger(dte_param, chain_series):
+    chain_series_idx = 0
+
+    realized_skews = []
+
+    for chain in chain_series:
+
+        cur_chain_series = chain_series[chain_series_idx:]
+
+        initial_chain = chain
+        initial_S = initial_chain.S
+        initial_put_prices, initial_call_prices, initial_strikes, initial_dtes = initial_chain.get_equal_skew_prices(dte=dte_param, max_days_diff=10) 
+        initial_var_strike = variance_swap_fixed_leg_neuberger(initial_S, initial_put_prices, initial_call_prices, initial_strikes, initial_dtes)
+
+        print(f"Initial chain expiration list {initial_chain.get_common_exps()}")
+        print(f"initial dte: {initial_dtes}")
+        initial_exp = initial_chain.get_exp_from_dte(dte_param, 10)[0]
+
+        print(f"exp from dte: {initial_exp}")
+
+        idx = 0
+        r = 0.04
+
+        forward_prices = []
+        entropy_contracts = []
+
+        # calculate fixed expiration entropy contract each day
+        while idx < len(cur_chain_series) and cur_chain_series[idx].close_date < initial_exp:
+            cur_chain = cur_chain_series[idx]
+            cur_S = cur_chain.S
+            print(f"cur chain date: {cur_chain.close_date}, exp: {initial_exp}, cur_chain_series close date {cur_chain_series[idx].close_date }")
+            put_prices, call_prices, strikes, dtes = cur_chain.get_equal_skew_prices(initial_exp)
+            print(f"dte in while loop: {dtes}")
+            F_i = cur_S*np.exp(r * dtes/365)
+            # print(f"dte: {dtes}")
+            # print(f"close date: {cur_chain.close_date}")
+            entropy = entropy_contract_approximation(cur_S, put_prices, call_prices, strikes, dtes)
+
+            forward_prices.append(F_i)
+            entropy_contracts.append(entropy)
+
+            idx +=1
+
+        entropy_contracts = np.array(entropy_contracts)
+        forward_prices = np.array(forward_prices)
+
+        returns = np.log(forward_prices[1:]/forward_prices[:-1])
+        delta_entropy = np.diff(np.array(entropy_contracts))
+
+        # print(len(delta_entropy))
+        # print(len(returns))
+
+        rst = np.sum([delta_entropy[i] * (np.exp(returns[i]) - 1) + 6 * (2 - 2*np.exp(returns[i]) + returns[i] + returns[i]*np.exp(returns[i])) for i in range(len(entropy_contracts) - 1)])
+
+        rskew = rst / (initial_var_strike)**(3/2)
+        realized_skews.append(rskew)
+
+        chain_series_idx +=1
+        print("\n")    
+
 
 def spx_vix_beta(start_date, end_date, window=21):
     """

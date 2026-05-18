@@ -1,6 +1,6 @@
-from calc_engine.option_pricing import simulation as sim
-from calc_engine.option_pricing import analytical_solutions as an
-from calc_engine.option_pricing import FFT
+from py_op.calc_engine.option_pricing import simulation as sim
+from py_op.calc_engine.option_pricing import analytical_solutions as an
+from py_op.calc_engine.option_pricing import FFT
 from py_op.calc_engine.option_pricing import fourier_inversion as fi
 
 class OptionPriceFactory:

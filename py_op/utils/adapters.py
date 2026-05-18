@@ -1,7 +1,7 @@
 import numpy as np
 
-from calc_engine.option_pricing.option_price_factory import OptionPriceFactory
-from calc_engine.calibration.error_functions import normalized_root_mean_squared_error_matrix, sum_of_squares
+from py_op.calc_engine.option_pricing.option_price_factory import OptionPriceFactory
+from py_op.calc_engine.calibration.error_functions import normalized_root_mean_squared_error_matrix, sum_of_squares
 
 class ErrorFunctionAdapter:
 
