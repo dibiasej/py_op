@@ -164,16 +164,29 @@ class RollingGVV(RollingAnalytics):
             atm_ivs.append(atm_iv)
 
         return implied_skews, dates
-    
-    def butterfly_volatility(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True, put_delta: float = -0.25, call_delta: float = 0.25):
+
+    def risk_reversal_volatility(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True, put_delta: float = -0.25, call_delta: float = 0.25):
         """
         This method uses 25 delta ivs for puts and calls but it doesnt have to it is just a good rule of thumb to use the 25 delta vols.
         This is also related to implied kurtosis
         """
+        rr_vols, dates = [], []
+        for put_iv, call_iv, K_put, K_call, spot, date, atm_iv in self._select_skew_points(dte, r, q, weights, mode="delta", put_delta=put_delta, call_delta=call_delta):
+            dates.append(date)
+            rr_vols.append(call_iv - put_iv)
+
+        return rr_vols, dates
+
+    def butterfly_volatility(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True, put_delta: float = -0.25, call_delta: float = 0.25):
+        """
+        This method uses 25 delta ivs for puts and calls but it doesnt have to it is just a good rule of thumb to use the 25 delta vols.
+        This is also related to implied kurtosis
+        The higher this is the more expensive the wings are/the greater the curvature of the curve
+        """
         butterfly_vols, dates = [], []
         for put_iv, call_iv, K_put, K_call, spot, date, atm_iv in self._select_skew_points(dte, r, q, weights, mode="delta", put_delta=put_delta, call_delta=call_delta):
             dates.append(date)
-            butterfly_vols.append(((put_iv - call_iv) / 2) - atm_iv)
+            butterfly_vols.append(((call_iv + put_iv) / 2) - atm_iv)
 
         return butterfly_vols, dates
 
