@@ -62,10 +62,11 @@ class RollingGVV(RollingAnalytics):
         return close_dates, spots, vol_levels, spot_vol_corrs, vol_vols, skews, strike_list
 
     def _select_skew_points(self, dte: float, r: float = 0.04, q: float = 0.0, weights: bool = True, mode: str = "moneyness", put_moneyness: float = 0.1, call_moneyness: float = 0.1, put_delta: float = -0.25, call_delta: float = 0.25):
-        dates, spots, _, _, _, skews, strikes_list = self._implied_parameter_helper(dte, r, weights)
+        dates, spots, vol_levels, _, _, skews, strikes_list = self._implied_parameter_helper(dte, r, weights)
 
         for i in range(len(skews)):
             spot = spots[i]
+            atm_iv = vol_levels[i]
             skew = skews[i]
             date = dates[i]
             strikes = strikes_list[i]
@@ -84,7 +85,7 @@ class RollingGVV(RollingAnalytics):
 
             put_iv,  K_put  = float(skew[idx_put]),  float(strikes[idx_put])
             call_iv, K_call = float(skew[idx_call]), float(strikes[idx_call])
-            yield put_iv, call_iv, K_put, K_call, spot, date
+            yield put_iv, call_iv, K_put, K_call, spot, date, atm_iv
 
 
     def vol_level(self, dte: float, r: float = 0.04, weights: bool = True):
@@ -104,9 +105,13 @@ class RollingGVV(RollingAnalytics):
         return dates, skews, strikes
     
     def implied_skew_moneyness(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = False, put_moneyness: float = 0.1, call_moneyness: float = 0.1):
-
+        """
+        This method measures the skew curve using otm put and call ivs at a certain moneyness, then normalizes that by dividing by the strikes.
+        This is a way to approximate the ATM skew slope using a finite difference type of model.
+        This is from some content somewhere that Euan Sinclair put out.
+        """
         implied_skews, dates = [], []
-        for put_iv, call_iv, K_put, K_call, spot, date in self._select_skew_points(dte, r, q, weights, mode="moneyness", put_moneyness=put_moneyness, call_moneyness=call_moneyness):
+        for put_iv, call_iv, K_put, K_call, spot, date, atm_iv in self._select_skew_points(dte, r, q, weights, mode="moneyness", put_moneyness=put_moneyness, call_moneyness=call_moneyness):
             dates.append(date)
             denom = (K_put - K_call) / spot
             implied_skews.append((put_iv - call_iv) / denom)
@@ -116,7 +121,7 @@ class RollingGVV(RollingAnalytics):
     def implied_skew_delta(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True, put_delta: float = -0.25, call_delta: float = 0.25):
 
         implied_skews, dates = [], []
-        for put_iv, call_iv, K_put, K_call, spot, date in self._select_skew_points(dte, r, q, weights, mode="delta", put_delta=put_delta, call_delta=call_delta):
+        for put_iv, call_iv, K_put, K_call, spot, date, atm_iv in self._select_skew_points(dte, r, q, weights, mode="delta", put_delta=put_delta, call_delta=call_delta):
             dates.append(date)
             denom = (K_put - K_call) / spot
             implied_skews.append((put_iv - call_iv) / denom)
@@ -129,23 +134,48 @@ class RollingGVV(RollingAnalytics):
         Use put_moneyness .1 and call 0 to get Collin Bennets exact definition
         """
         implied_skews, dates = [], []
-        for put_iv, call_iv, K_put, K_call, spot, date in self._select_skew_points(dte, r, q, weights, mode="moneyness", put_moneyness=put_moneyness, call_moneyness=call_moneyness):
+        for put_iv, call_iv, K_put, K_call, spot, date, atm_iv in self._select_skew_points(dte, r, q, weights, mode="moneyness", put_moneyness=put_moneyness, call_moneyness=call_moneyness):
             dates.append(date)
             implied_skews.append(put_iv - call_iv)
 
         return implied_skews, dates
 
-    def implied_skew_fixed_strike_delta(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = False, put_delta: float = -0.25, call_delta: float = 0.25):
+    def implied_skew_fixed_strike_delta(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True, put_delta: float = -0.25, call_delta: float = 0.25):
         """
         We call it Fixed strike because this is the convention Collin Bennet uses in his book, we may change the name in the future
-        Use put_moneyness .1 and call 0 to get Collin Bennets exact definition
+        Use put_moneyness .1 and call 0 to get Collin Bennets exact definition.
+        This is also how you can measure a Risk Reversal IV.
         """
         implied_skews, dates = [], []
-        for put_iv, call_iv, K_put, K_call, spot, date in self._select_skew_points(dte, r, q, weights, mode="delta", put_delta=put_delta, call_delta=call_delta):
+        for put_iv, call_iv, K_put, K_call, spot, date, atm_iv in self._select_skew_points(dte, r, q, weights, mode="delta", put_delta=put_delta, call_delta=call_delta):
             dates.append(date)
             implied_skews.append(put_iv - call_iv)
 
         return implied_skews, dates
+
+    def implied_skewness(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True):
+        """
+        This is the implied skewness/measurement of the implied volatility curve given in Euan Sinclairs retail option trading book.
+        """
+        implied_skews, dates, atm_ivs = [], [], []
+        for put_iv, call_iv, K_put, K_call, spot, date, atm_iv in self._select_skew_points(dte, r, q, weights, mode="delta", put_delta=-0.25, call_delta=0.25):
+            dates.append(date)
+            implied_skews.append(4.448 * ((put_iv - call_iv) / atm_iv))
+            atm_ivs.append(atm_iv)
+
+        return implied_skews, dates
+    
+    def butterfly_volatility(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True, put_delta: float = -0.25, call_delta: float = 0.25):
+        """
+        This method uses 25 delta ivs for puts and calls but it doesnt have to it is just a good rule of thumb to use the 25 delta vols.
+        This is also related to implied kurtosis
+        """
+        butterfly_vols, dates = [], []
+        for put_iv, call_iv, K_put, K_call, spot, date, atm_iv in self._select_skew_points(dte, r, q, weights, mode="delta", put_delta=put_delta, call_delta=call_delta):
+            dates.append(date)
+            butterfly_vols.append(((put_iv - call_iv) / 2) - atm_iv)
+
+        return butterfly_vols, dates
 
     def implied_skew_constant_strike(self, delta, moneyness):
         """"
