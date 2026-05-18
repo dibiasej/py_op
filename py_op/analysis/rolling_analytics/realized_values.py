@@ -189,7 +189,7 @@ def rolling_spot_var_swap_stats(ticker: str, start_date: str, end_date: str, dte
 
     return betas, covs, corrs, iv_dates[window:]
 
-def realized_skew_neurberger(dte_param, chain_series):
+def realized_skew_neuberger(dte_param, chain_series, r: float = 0.04):
     chain_series_idx = 0
 
     realized_skews = []
@@ -206,7 +206,6 @@ def realized_skew_neurberger(dte_param, chain_series):
         initial_exp = initial_chain.get_exp_from_dte(dte_param, 10)[0]
 
         idx = 0
-        r = 0.04
 
         forward_prices = []
         entropy_contracts = []
@@ -232,10 +231,8 @@ def realized_skew_neurberger(dte_param, chain_series):
         returns = np.log(forward_prices[1:]/forward_prices[:-1])
         delta_entropy = np.diff(np.array(entropy_contracts))
 
-        # print(len(delta_entropy))
-        # print(len(returns))
-
-        rst = np.sum([delta_entropy[i] * (np.exp(returns[i]) - 1) + 6 * (2 - 2*np.exp(returns[i]) + returns[i] + returns[i]*np.exp(returns[i])) for i in range(len(entropy_contracts) - 1)])
+        # Note in the below we might want to multiply the delta_entropy by 3, the paper is inconsistant with this
+        rst = np.sum([3*delta_entropy[i] * (np.exp(returns[i]) - 1) + 6 * (2 - 2*np.exp(returns[i]) + returns[i] + returns[i]*np.exp(returns[i])) for i in range(len(entropy_contracts) - 1)])
 
         rskew = rst / (initial_var_strike)**(3/2)
         realized_skews.append(rskew)
