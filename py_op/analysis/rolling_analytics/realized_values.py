@@ -203,11 +203,7 @@ def realized_skew_neurberger(dte_param, chain_series):
         initial_put_prices, initial_call_prices, initial_strikes, initial_dtes = initial_chain.get_equal_skew_prices(dte=dte_param, max_days_diff=10) 
         initial_var_strike = variance_swap_fixed_leg_neuberger(initial_S, initial_put_prices, initial_call_prices, initial_strikes, initial_dtes)
 
-        print(f"Initial chain expiration list {initial_chain.get_common_exps()}")
-        print(f"initial dte: {initial_dtes}")
         initial_exp = initial_chain.get_exp_from_dte(dte_param, 10)[0]
-
-        print(f"exp from dte: {initial_exp}")
 
         idx = 0
         r = 0.04
@@ -219,9 +215,7 @@ def realized_skew_neurberger(dte_param, chain_series):
         while idx < len(cur_chain_series) and cur_chain_series[idx].close_date < initial_exp:
             cur_chain = cur_chain_series[idx]
             cur_S = cur_chain.S
-            print(f"cur chain date: {cur_chain.close_date}, exp: {initial_exp}, cur_chain_series close date {cur_chain_series[idx].close_date }")
             put_prices, call_prices, strikes, dtes = cur_chain.get_equal_skew_prices(initial_exp)
-            print(f"dte in while loop: {dtes}")
             F_i = cur_S*np.exp(r * dtes/365)
             # print(f"dte: {dtes}")
             # print(f"close date: {cur_chain.close_date}")
@@ -247,7 +241,8 @@ def realized_skew_neurberger(dte_param, chain_series):
         realized_skews.append(rskew)
 
         chain_series_idx +=1
-        print("\n")    
+
+    return realized_skews    
 
 
 def spx_vix_beta(start_date, end_date, window=21):
