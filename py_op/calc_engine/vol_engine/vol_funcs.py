@@ -198,6 +198,58 @@ def skew_swap_fixed_leg_neuberger(S, put_prices, call_prices, strikes, dte, r = 
     Ks = (6.0 / np.exp(-r*T)) * (call_side_sum - put_side_sum)
     return Ks
 
+def model_free_implied_skewness(S, put_prices, call_prices, strikes, dte, r = 0.04, q: float = 0):
+    """
+    This function calculates the implied skewness as outlines in Variance Risk Premium, Skewness Risk Premium and Equity Expected Returns by Akio Ito
+    """
+
+    strikes = np.asarray(strikes, dtype=float)
+    put_prices = np.asarray(put_prices, dtype=float)
+    call_prices = np.asarray(call_prices, dtype=float)
+
+    # Sort everything by strike just in case
+    idx = np.argsort(strikes)
+    strikes = strikes[idx]
+    put_prices = put_prices[idx]
+    call_prices = call_prices[idx]
+
+    T = dte / 365.0
+    F = S * np.exp((r - q)*T)
+
+    P1 = 0
+    P2 = 0
+    P3 = 0
+
+    for i in range(1, len(strikes) - 1):
+        K = strikes[i]
+
+        # Central-difference strike spacing
+        dK = (strikes[i + 1] - strikes[i - 1]) / 2.0
+
+        if K < F:
+
+            Q = put_prices[i]
+            P1 += (1 / K**2) * Q * dK
+            P2 += (2 / K**2) * (1 - np.log(K/F)) * Q * dK
+            P3 += (3 / K**2) * (2*np.log(K/F) - np.log(K/F)**2) * Q * dK
+
+        elif K > F:
+
+            Q = call_prices[i]
+            P1 += (1 / K**2) * Q * dK
+            P2 += (2 / K**2) * (1 - np.log(K/F)) * Q * dK
+            P3 += (3 / K**2) * (2*np.log(K/F) - np.log(K/F)**2) * Q * dK
+
+        else:
+            Q = 0.0
+
+    # discount
+    P1 = np.exp(r*T)*(-P1)
+    P2 = np.exp(r*T)*P2
+    P3 = np.exp(r*T)*P3
+
+    mfis = (P3 - 3*P1*P2 + 2*P1**3) / (P2 - P1**2)**(3/2)
+    return mfis
 
 def linear_interpolated_iv_v1(iv1, iv2, dte1, dte2, target_date):
     """

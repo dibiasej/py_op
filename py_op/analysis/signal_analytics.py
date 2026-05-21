@@ -3,9 +3,10 @@ import numpy as np
 from py_op.analysis.rolling_analytics.implied_surface import RollingVolatility
 
 
-def straddle_breakevens(start_date, end_date, ticker: list = None) -> dict:
+def straddle_breakevens(start_date, end_date, tickers: list = None) -> dict:
     """
     This function will return a dictionary with multiple tickers and there atm straddle breakevens across multipl expirations
+    This is good for seeing when a straddle is cheap or expensive.
     """
     # default tickers
     if tickers is None:

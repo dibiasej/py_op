@@ -11,3 +11,5 @@ from .rolling_analytics.realized_values import (
     rolling_realized_volatility,
     realized_vol_of_vol
     )
+
+from .signal_analytics import straddle_breakevens
