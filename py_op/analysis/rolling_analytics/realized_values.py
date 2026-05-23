@@ -47,6 +47,9 @@ def rolling_realized_volatility(ticker: str, start: str, end: str, realized_vol_
     return rvol, dates
 
 def rolling_realized_skewness(ticker: str, start_date: str, end_date: str, realized_volatility_period: str = "M", freq: str = "D"):
+    """
+    This function plots the rolling realized skewness from Akio Ito risk premium paper: RS_t = sqrt(n) * sum(r_j^3) / RV_t^(3/2)
+    """
     length_int = rv_utils.realized_volatility_period_length(realized_volatility_period, freq)
     log_rets, dates = get_log_rets(ticker, start=start_date, end=end_date, freq=freq)
 
@@ -70,6 +73,9 @@ def rolling_realized_skewness(ticker: str, start_date: str, end_date: str, reali
     return realized_skews, dates[length_int - 1:]
 
 def rolling_realized_skewness1(ticker: str, start_date: str, end_date: str, realized_volatility_period: str = "M", freq: str = "D"):
+    """
+    Not sure where this formula is from or if it is good, we will have to look into it.
+    """
     length_int = rv_utils.realized_volatility_period_length(realized_volatility_period, freq)
     log_rets, dates = get_log_rets(ticker, start=start_date, end=end_date, freq=freq)
 
@@ -190,6 +196,10 @@ def rolling_spot_var_swap_stats(ticker: str, start_date: str, end_date: str, dte
     return betas, covs, corrs, iv_dates[window:]
 
 def realized_skew_neuberger(dte_param, chain_series, r: float = 0.04):
+    """
+    This calculates the realized skew based on Neubergers defition which uses a variance swap in the denominator
+    I want to change this so it takes in a start date and end date and then calculates the chain series internally we shouldnt be passing in the chain series
+    """
     chain_series_idx = 0
 
     realized_skews = []

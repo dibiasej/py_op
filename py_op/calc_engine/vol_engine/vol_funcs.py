@@ -201,6 +201,7 @@ def skew_swap_fixed_leg_neuberger(S, put_prices, call_prices, strikes, dte, r = 
 def model_free_implied_skewness(S, put_prices, call_prices, strikes, dte, r = 0.04, q: float = 0):
     """
     This function calculates the implied skewness as outlines in Variance Risk Premium, Skewness Risk Premium and Equity Expected Returns by Akio Ito
+    This is very similar to the other skew swap strikes
     """
 
     strikes = np.asarray(strikes, dtype=float)

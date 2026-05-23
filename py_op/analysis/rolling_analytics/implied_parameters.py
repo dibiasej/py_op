@@ -96,6 +96,10 @@ class RollingGVV(RollingAnalytics):
         dates, _, _, spot_vol_corrs, _, _, _ = self._implied_parameter_helper(dte, r, weights)
         return dates, spot_vol_corrs
 
+    def spot_vol_cov(self, dte: float, r: float = 0.04, weights: bool = True):
+        dates, _, vol_levels, spot_vol_corrs, vol_vols, _, _ = self._implied_parameter_helper(dte, r, weights)
+        return dates, np.array(spot_vol_corrs) * np.array(vol_levels) * np.array(vol_vols)
+
     def vol_vol(self, dte: float, r: float = 0.04, weights: bool = True):
         dates, _, _, _, vol_vols, _, _ = self._implied_parameter_helper(dte, r, weights)
         return dates, vol_vols
