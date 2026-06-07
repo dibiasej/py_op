@@ -141,3 +141,66 @@ class OptionChainRepository:
         cur.execute(query, params)
         rows = cur.fetchall()
         return rows
+
+    def preview_delete_skew_by_dte(self, ticker: str, close_date: str, dte: int, option_type: str = None):
+        """
+        Preview how many rows would be deleted for a specific ticker,
+        close_date, and DTE.
+
+        If option_type is None, checks both calls and puts.
+        """
+
+        query = """
+        SELECT ticker, close_date, option_type, expiration_date, dte, strike, price, bid, ask, mid_price, yahoo_iv, volume, open_interest
+        FROM option_data
+        WHERE ticker = ?
+        AND close_date = ?
+        AND dte = ?
+        """
+
+        params = [ticker.upper(), close_date, int(dte)]
+
+        if option_type is not None:
+            query += " AND option_type = ?"
+            params.append(option_type)
+
+        query += """
+        ORDER BY expiration_date, option_type, strike
+        """
+
+        cur = self.conn.cursor()
+        cur.execute(query, params)
+        rows = cur.fetchall()
+
+        return rows
+    
+    def delete_skew_by_dte(self, ticker: str, close_date: str, dte: int, option_type: str = None, commit: bool = True):
+        """
+        Delete all option rows for a specific ticker, close_date, and DTE.
+
+        If option_type is None, deletes both calls and puts.
+        If option_type is provided, deletes only that option type.
+        """
+
+        query = """
+        DELETE FROM option_data
+        WHERE ticker = ?
+        AND close_date = ?
+        AND dte = ?
+        """
+
+        params = [ticker.upper(), close_date, int(dte)]
+
+        if option_type is not None:
+            query += " AND option_type = ?"
+            params.append(option_type)
+
+        cur = self.conn.cursor()
+        cur.execute(query, params)
+
+        deleted_rows = cur.rowcount
+
+        if commit:
+            self.conn.commit()
+
+        return deleted_rows

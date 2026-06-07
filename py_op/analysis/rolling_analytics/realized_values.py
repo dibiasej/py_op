@@ -267,6 +267,8 @@ def spx_vix_beta(start_date, end_date, window=21):
         raise ValueError("spot_log_rets and vol_changes must have same length")
 
     beta = np.full(len(spx_log_rets), np.nan)
+    cov = np.full(len(spx_log_rets), np.nan)
+    corr = np.full(len(spx_log_rets), np.nan)
 
     for i in range(window - 1, len(spx_log_rets)):
         r = spx_log_rets[i - window + 1:i + 1]

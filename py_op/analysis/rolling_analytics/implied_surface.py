@@ -553,7 +553,6 @@ class RollingVolatility(RollingAnalytics):
 
                 put_prices_lo, call_prices_lo, strikes_lo, actual_dtes_lo = chain.get_equal_skew_prices(dte=dte_lo, max_days_diff=0)
                 put_prices_hi, call_prices_hi, strikes_hi, actual_dtes_hi = chain.get_equal_skew_prices(dte=dte_hi, max_days_diff=0)
-
                 var_lo = variance_swap_fixed_leg(S, put_prices_lo, call_prices_lo, strikes_lo, actual_dtes_lo, r)
                 var_hi = variance_swap_fixed_leg(S, put_prices_hi, call_prices_hi, strikes_hi, actual_dtes_hi, r)
 

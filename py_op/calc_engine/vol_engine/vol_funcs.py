@@ -17,7 +17,7 @@ def variance_swap_fixed_leg(S, put_prices, call_prices, strikes, dte, r):
     c0 = call_prices[atm_idx]
     p0 = put_prices[atm_idx]
     F0 = x0 + np.exp(r * T) * (c0 - p0)
-
+    print(f"dte: {dte} strikes: {strikes}")
     K0 = strikes[strikes <= F0].max()
     sigma_2 = 0.0
 
@@ -251,6 +251,62 @@ def model_free_implied_skewness(S, put_prices, call_prices, strikes, dte, r = 0.
 
     mfis = (P3 - 3*P1*P2 + 2*P1**3) / (P2 - P1**2)**(3/2)
     return mfis
+
+def model_free_implied_kurtosis(S, put_prices, call_prices, strikes, dte, r = 0.04, q: float = 0):
+    """
+    This function is similar to the model free implied skewness from Ito (2025), this is derived using otm puts and calls and is an approximation of the risk-neutral skewness.
+    This is from Bakshi, Kapadia and Madan (2003)
+    """
+    """
+    This function calculates the implied skewness as outlines in Variance Risk Premium, Skewness Risk Premium and Equity Expected Returns by Akio Ito
+    This is very similar to the other skew swap strikes
+    """
+
+    strikes = np.asarray(strikes, dtype=float)
+    put_prices = np.asarray(put_prices, dtype=float)
+    call_prices = np.asarray(call_prices, dtype=float)
+
+    # Sort everything by strike just in case
+    idx = np.argsort(strikes)
+    strikes = strikes[idx]
+    put_prices = put_prices[idx]
+    call_prices = call_prices[idx]
+
+    T = dte / 365.0
+    F = S * np.exp((r - q)*T)
+
+    V = 0
+    W = 0
+    X = 0
+
+    for i in range(1, len(strikes) - 1):
+        K = strikes[i]
+
+        # Central-difference strike spacing
+        dK = (strikes[i + 1] - strikes[i - 1]) / 2.0
+
+        if K < F:
+
+            P = put_prices[i]
+            V += ((2*(1 + np.log(F / K))) / K**2) * P
+            W += ((6*np.log(F / K) + 3*np.log(F / K)**2) / K**2) * P
+            X += ((12*np.log(F / K)**2 + 4*np.log(F / K)**3) / K**2) * P
+
+
+        elif K > F:
+
+            C = call_prices[i]
+            V += ((2*(1 - np.log(K / F))) / K**2) * C
+            W += ((6*np.log(K / F) - 3*np.log(K / F)**2) / K**2) * C
+            X += ((12*np.log(K / F)**2 - 4*np.log(K / F)**3) / K**2) * C
+
+
+        else:
+            Q = 0.0
+
+    mu = np.exp(r*T) - 1 - 0.5*np.exp(r*T)*V - (1/6)*np.exp(r*T)*W - (1/24)*np.exp(r*T)*X
+    KURT = (np.exp(r*T)*X - 4*mu*np.exp(r*T)*W + 6*np.exp(r*T)**2*V - 3*mu**4) / (np.exp(r*T)*V - mu**2)**2
+    return KURT
 
 def linear_interpolated_iv_v1(iv1, iv2, dte1, dte2, target_date):
     """

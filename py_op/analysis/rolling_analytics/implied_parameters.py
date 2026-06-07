@@ -195,6 +195,39 @@ class RollingGVV(RollingAnalytics):
 
         return butterfly_vols, dates
 
+    def implied_kurtosis(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True, put_delta: float = -0.05, call_delta: float = 0.05):
+        """
+        This method is of measuring implied kurtosis directly measures how much otm puts are overpriced compared to calls using 5 delta put iv - 5 delta call iv.
+        """
+        implied_kurtosis, dates = [], []
+        for put_iv, call_iv, K_put, K_call, spot, date, atm_iv in self._select_skew_points(dte, r, q, weights, mode="delta", put_delta=put_delta, call_delta=call_delta):
+            dates.append(date)
+            implied_kurtosis.append(put_iv - call_iv)
+
+        return implied_kurtosis, dates
+    
+    def implied_kurtosis_normalized(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True, put_delta: float = -0.05, call_delta: float = 0.05):
+        """
+        This method 
+        """
+        implied_kurtosis, dates = [], []
+        for put_iv, call_iv, K_put, K_call, spot, date, atm_iv in self._select_skew_points(dte, r, q, weights, mode="delta", put_delta=put_delta, call_delta=call_delta):
+            dates.append(date)
+            implied_kurtosis.append((put_iv - call_iv) / atm_iv)
+
+        return implied_kurtosis, dates
+
+    def implied_kurtosis_natenberg(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True, put_delta: float = -0.05, call_delta: float = 0.05):
+        """
+        This method is from Natenbergs book and he uses 5 delta call iv - 5 delta put iv to measure kurtosis.
+        """
+        implied_kurtosis, dates = [], []
+        for put_iv, call_iv, K_put, K_call, spot, date, atm_iv in self._select_skew_points(dte, r, q, weights, mode="delta", put_delta=put_delta, call_delta=call_delta):
+            dates.append(date)
+            implied_kurtosis.append(call_iv - put_iv)
+
+        return implied_kurtosis, dates
+
     def implied_skew_constant_strike(self, delta, moneyness):
         """"
         Define an initial delta or moneyness at the first day of the period to set the strikes but these strikes do not change over time.
