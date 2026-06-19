@@ -105,8 +105,8 @@ class RollingGVV(RollingAnalytics):
         return dates, vol_vols
 
     def skew_curve(self, dte: float, r: float = 0.04, weights: bool = True):
-        dates, _, _, _, _, skews, strikes = self._implied_parameter_helper(dte, r, weights)
-        return dates, skews, strikes
+        dates, spots, _, _, _, skews, strikes = self._implied_parameter_helper(dte, r, weights)
+        return dates, skews, strikes, spots
     
     def implied_skew_moneyness(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = False, put_moneyness: float = 0.1, call_moneyness: float = 0.1):
         """

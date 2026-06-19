@@ -8,6 +8,7 @@ from py_op.calc_engine.option_pricing import (
 )
 
 from py_op.calc_engine.calibration import model_optimization
+from py_op.calc_engine.greeks import analytical_greeks
 
 # IV + Skew tools (class-level exports)
 from py_op.calc_engine.vol_engine.iv_calc import (

@@ -196,6 +196,7 @@ class GVVUtils:
         This version fits decently well, the skew bisection fits a lot better, but this one is less succeptible to outliers.
         I am not sure if this is the closed form but we should try to see if it is and not make a version for the close form.      
         """
+        strikes = np.linspace(strikes[0], strikes[-1], 200) # interpolate strikes
         return_var = coeffs[0]
         spotvol_cov = coeffs[1]
         implvol_var = coeffs[2]

@@ -3,7 +3,7 @@ import numpy as np
 #from data.price_data import get_close_prices
 from py_op.data.structures.position_info_data_structure import PortfolioInfo, StockPositionInfo, OptionPositionInfo
 from py_op.data.repositories.position_repository import PositionSeriesRepository
-from py_op.calc_engine.vol_engine.iv_calc import RootFinder
+from py_op.calc_engine.vol_engine.iv_calc import RootFinder, InverseGaussian
 from py_op.calc_engine.greeks.analytical_greeks import AnalyticalDelta
 
 class PositionSeriesBuilder:
@@ -19,7 +19,8 @@ class PositionSeriesBuilder:
         """
         deltas = []
         for i in range(len(market_prices)):
-            iv = RootFinder().calculate(market_prices[i], spot_prices[i], strikes[i], dtes[i]/365, r=r, otype=otype, q=q)
+            #iv = RootFinder().calculate(market_prices[i], spot_prices[i], strikes[i], dtes[i]/365, r=r, otype=otype, q=q)
+            iv = InverseGaussian().calculate(market_prices[i], spot_prices[i], strikes[i], dtes[i], r=r, otype=otype, q=q)
             delta = AnalyticalDelta().calculate(spot_prices[i], strikes[i], dtes[i]/365, iv, r=r, q=q, otype=otype)
             deltas.append(delta)
 
