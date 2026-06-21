@@ -181,6 +181,85 @@ class SABRSimulation(Simulation):
 
         return S
     
+class TwoFactorBergomiSmileDynamics2Simulation(Simulation):
+
+    def paths(self, S: float, T: float, r: float, M: int, I: int, xi0_curve: list[float], dtes: list[float], rho: float, rho_sx: float, rho_sy: float, k1: float, k2: float, omega: float, theta: float):
+        """
+        Monte Carlo simulation engine for the two-factor Bergomi model inspired by Bergomi's Smile Dynamics II framework.
+
+        This class simulates spot paths under a two-factor lognormal instantaneous variance process. The variance dynamics are driven by two mean-reverting
+        Gaussian factors, X_t and Y_t, and the spot process is correlated with both variance factors.
+
+        Important
+        ---------
+        This model requires a full initial variance term structure, not a single variance number.
+
+        The user must pass:
+            xi0_curve = np.array(var_swap_curve) ** 2
+            dtes = np.array(dtes) / 365
+
+        where `var_swap_curve` is the volatility/variance curve quoted across maturities and `dtes` are the corresponding days-to-expiration.
+        The model interpolates the curve at each simulation time t using: xi0_t = np.interp(t, dtes, xi0_curve)
+        rho is the correlation between the X and Y OU factors and generally should be positive.
+        """
+        rng = np.random.default_rng(42)
+        t_grid = np.linspace(0, T, M + 1)
+        dt = T/M
+
+        X_t = np.zeros((M+1, I))
+        Y_t = np.zeros((M+1, I))
+
+        EX2_t = np.zeros(M+1)
+        EY2_t = np.zeros(M+1)
+        EXY_t = np.zeros(M+1)
+
+        inst_vol = np.zeros((M+1, I))
+        inst_var = np.zeros((M + 1, I))
+        S_t = np.zeros((M + 1, I))
+
+        var_x_step = (1.0 - np.exp(-2.0 * k1 * dt)) / (2.0 * k1)
+        var_y_step = (1.0 - np.exp(-2.0 * k2 * dt)) / (2.0 * k2)
+        cov_xy_step = rho * (1.0 - np.exp(-(k1 + k2) * dt)) / (k1 + k2)
+
+        cov_xz_step = rho_sx * (1.0 - np.exp(-k1 * dt)) / k1
+        cov_yz_step = rho_sy * (1.0 - np.exp(-k2 * dt)) / k2
+        var_z_step = dt
+
+        S_t[0] = S
+
+        cov = np.array([
+            [var_x_step,  cov_xy_step, cov_xz_step],
+            [cov_xy_step, var_y_step,  cov_yz_step],
+            [cov_xz_step, cov_yz_step, var_z_step]
+        ])
+
+        for i in range(M):
+            t = t_grid[i]
+            xi0_t = np.interp(t, dtes, xi0_curve)
+
+            EX2_t[i + 1] = np.exp(-2*k1*dt) * EX2_t[i] + var_x_step
+            EY2_t[i + 1] = np.exp(-2*k2*dt) * EY2_t[i] + var_y_step
+            EXY_t[i + 1] = np.exp(-(k1 + k2)*dt) * EXY_t[i] + cov_xy_step
+
+            shocks = rng.multivariate_normal(mean=np.array([0.0, 0.0, 0.0]), cov=cov, size=I)
+
+            shock_x = shocks[:, 0]
+            shock_y = shocks[:, 1]
+            dZ = shocks[:, 2]
+
+            X_t[i + 1] = np.exp(-k1*dt)*X_t[i] + shock_x
+            Y_t[i + 1] = np.exp(-k2*dt)*Y_t[i] + shock_y
+
+            random_part = omega * (X_t[i + 1] + theta * Y_t[i + 1])
+            variance_correction = 0.5 * omega**2 * (EX2_t[i + 1] + theta**2 * EY2_t[i + 1] + 2 * theta * EXY_t[i + 1])
+
+            inst_var[i + 1] = xi0_t * np.exp(random_part - variance_correction)
+            inst_vol[i + 1] = np.sqrt(inst_var[i + 1])
+
+            S_t[i + 1] = S_t[i] * np.exp((r - 0.5 * inst_var[i + 1]) * dt + inst_vol[i + 1] * dZ)
+
+        return S_t
+
 class rBergomiSimulation(Simulation):
 
     def paths(self, S: float, T: float, r: float, M: int, I: int, a: float, rho: float, xi: float, eta: float) -> None:
