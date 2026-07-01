@@ -322,3 +322,30 @@ def forward_volatility(iv1, iv2, dte1, dte2) -> float:
     T1 = dte1/365
     T2 = dte2/365
     return np.sqrt((T2*iv2**2 - T1*iv1**2) / (T2 - T1))
+
+def atm_skew_approx_two_factor_smile_3_bergomi(T: list[float], nu: float, theta: float, k1: float, k2: float, rho_x1x2: float, rho_sx1: float, rho_sx2: float):
+    """
+    This is the atmf skew term structure approximation used in Bergomis 2 factor model from smile dynamics 3. It approximates 95% - 105% atmf skew
+    It is a very good approximation but we need to calibrate the parameters first but below I give got starting approximations
+        nu=1.3, theta=0.28, k1=8, k2=0.35, rho_x1x2=0, rho_sx1=-0.7, rho_sx2=-0.357
+    """
+    alpha = 1 / np.sqrt((1 - theta)**2 + theta**2 + 2 * rho_x1x2 * theta * (1 - theta))
+
+    term1 = (1 - theta) * rho_sx1 * (k1 * T - (1 - np.exp(-k1 * T))) / (k1**2 * T**2)
+    term2 = theta * rho_sx2 * (k2 * T - (1 - np.exp(-k2 * T))) / (k2**2 * T**2)
+
+    return nu * alpha * (term1 + term2) * -np.log(1.05 / 0.95)
+
+def vol_of_vol_two_factor_smile_3_bergomi(T: list[float], nu: float, theta: float, k1: float, k2: float, rho_x1x2: float, zeta: float=1.0):
+    """
+    Instantaneous volatility of variance swap volatility sqrt(V_0,T).
+
+    This is the vol-of-vol term structure. Ie we can plug in multiple T's and easily get a term structure
+    """
+    alpha = 1 / np.sqrt((1 - theta)**2 + theta**2+ 2 * rho_x1x2 * theta * (1 - theta))
+
+    a1 = (1 - theta) * (1 - np.exp(-k1 * T)) / (k1 * T)
+    a2 = theta * (1 - np.exp(-k2 * T)) / (k2 * T)
+
+    vov = nu * zeta * alpha * np.sqrt(a1**2 + a2**2 + 2 * rho_x1x2 * a1 * a2)
+    return vov

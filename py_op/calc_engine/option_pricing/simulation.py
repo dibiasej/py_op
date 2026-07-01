@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 import numpy as np
+from scipy.linalg import cholesky
 
 """
 We need to add q for the simulations.
@@ -259,6 +260,63 @@ class TwoFactorBergomiSmileDynamics2Simulation(Simulation):
             S_t[i + 1] = S_t[i] * np.exp((r - 0.5 * inst_var[i + 1]) * dt + inst_vol[i + 1] * dZ)
 
         return S_t
+
+class TwoFactorBergomiSmileDynamics3Simulation(Simulation):
+
+    def paths(self, S: float, T: float, r: float, M: int, I: int, xi0_curve: list[float], dtes: list[float], rho_x1x2: float, rho_sx1: float, rho_sx2: float, k1: float, k2: float, theta: float, nu: float, gamma: float = 1, beta: float = 1, zeta: float = 1):
+
+        def h_func(t, T_forward):
+            lower = T_forward - t
+            upper = T_forward
+
+            h1 = (1 - theta)**2 * (np.exp(-2*k1*lower) - np.exp(-2*k1*upper)) / (2*k1)
+            h2 = theta**2 * (np.exp(-2*k2*lower) - np.exp(-2*k2*upper)) / (2*k2)
+            h12 = 2*rho_x1x2*theta*(1 - theta) * (np.exp(-(k1+k2)*lower) - np.exp(-(k1+k2)*upper)) / (k1+k2)
+
+            return alpha**2 * (h1 + h2 + h12)
+        
+        t_grid = np.linspace(0., T, M + 1)
+        dt = T/M
+
+        def covar(k_1,k_2,rho,t):
+            return rho*(1-np.exp(-(k_1+k_2)*t))/(k_1+k_2)
+
+        alpha = 1/np.sqrt((1-theta)**2+theta**2+2*rho_x1x2*theta*(1-theta))
+        omega = 2*nu*zeta / (1 - gamma + gamma*beta)
+
+        X_1 = np.zeros((M+1,I))
+        X_2 = np.zeros((M+1,I))
+        X = np.zeros((M+1,I))
+        inst_vol = np.zeros((M+1,I))
+        logS = np.zeros((M+1,I))
+        logS[0] = np.log(S)
+        inst_vol[0] = np.sqrt(xi0_curve[0])
+
+        # Variance and covariance that can be computed now
+        s_11, s_22, s_12 = covar(k1,k1,1,dt), covar(k2,k2,1,dt), covar(k1,k2,rho_x1x2,dt)
+        s_s1 = covar(k1,0,rho_sx1,dt)
+        s_s2 = covar(k2,0,rho_sx2,dt)
+        s_ss = dt
+
+        # Covariance square root lower triangular matrix
+        corr_mat = np.array([[s_11, s_12, s_s1], [s_12, s_22, s_s2], [s_s1, s_s2, s_ss]])
+        sqr_root = cholesky(corr_mat, lower=True)
+
+        for i in range(M):
+            t = t_grid[i]
+            xi0_t = np.interp(t, dtes, xi0_curve)
+            z1, z2, z3 = np.random.normal(size=(3,I))
+
+            # Compute next step for all processes (X^1, X^2, xi, logS)
+            X_1[i+1] = X_1[i]*np.exp(-k1*dt) + sqr_root[0][0] * z1
+            X_2[i+1] = X_2[i]*np.exp(-k2*dt) + (sqr_root[1][0] * z1 + sqr_root[1][1] * z2)
+            X[i+1] = alpha*((1-theta)*X_1[i+1] + theta*X_2[i+1])
+
+            ftx = (1 - gamma)*np.exp(omega * X[i + 1]) * np.exp(-.5 * (omega**2 * h_func(t, t))) + gamma*np.exp(beta*omega * X[i + 1]) * np.exp(-0.5*beta**2 * omega**2 * h_func(t, t))
+            inst_vol[i+1] = np.sqrt(xi0_t*ftx)
+            logS[i+1] = logS[i] - (r - 0.5*inst_vol[i]**2)*dt + inst_vol[i] * (sqr_root[2][0] * z1 + sqr_root[2][1] * z2 + sqr_root[2][2] * z3) # the second term is vol*dWs
+
+        return np.exp(logS)
 
 class rBergomiSimulation(Simulation):
 

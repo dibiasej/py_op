@@ -306,9 +306,10 @@ class RollingVolatility(RollingAnalytics):
     def constant_maturity_atm_iv(self, target_dte: int, q: float = 0.0):
         """
         This function uses linear interpolation to get a atm constant matuity iv.
-        Right now it only gets put iv, put it uses an implied rate so they should be equal, but in the future we will test for call iv.
+        Right now it only gets put iv, but it uses an implied rate so they should be equal, but in the future we will test for call iv.
         We will make two other functions one that gets atm put iv and one that gets atm call iv.
         We should add max_days_diff = 0
+        Note: This is a floating strike vol
         """
         ivs, dates, spots = [], [], []
         t_target = target_dte / 365
@@ -360,15 +361,138 @@ class RollingVolatility(RollingAnalytics):
 
         return ivs, dates, spots
     
-    def fixed_strike_constant_exp_atm_iv(self, exp: str = None, dte: int = None, max_diff_days: int = 5, q: float = 0):
+    def floating_strike_constant_maturity_iv_moneyness(self, moneyness: float, target_dte: int, max_days_diff: int = 4, parity_iv_relation: bool = True):
+        """
+        
+        For this moneyness we want to say for example .90, 1.10, 1.20 not .1 like the others
+        """
+        ivs, dates, spots = [], [], []
+
+        for chain in self.chain_series:
+            S = chain.S
+            dates.append(chain.close_date)
+            spots.append(S)
+
+            put_prices, call_prices, strikes, actual_dte = chain.get_equal_skew_prices(dte=target_dte, max_days_diff=max_days_diff)
+            moneyness_arr = strikes / S
+
+            # Note below we need to get the put and call at the same moneyness, so fo example we might have an itm put and the corresponding otm call
+            idx = np.abs(moneyness_arr - moneyness).argmin()
+
+            put_price, call_price = put_prices[idx], call_prices[idx]
+            K = strikes[idx]
+
+            if parity_iv_relation == True:
+                i_rate = implied_rate(call_price, put_price, S, K, actual_dte/365)
+                iv = self.iv_calc.calculate(put_price, S, K, actual_dte/365, otype="put", r = i_rate)
+
+            else:
+                put_iv = self.iv_calc.calculate(put_price, S, K, actual_dte/365, otype="put")
+                call_iv = self.iv_calc.calculate(call_price, S, K, actual_dte/365, otype="call")
+                iv = (put_iv + call_iv) / 2
+
+            ivs.append(iv)
+
+        return ivs, dates, spots
+    
+    def floating_strike_constant_maturity_iv_delta(self, delta: float, target_dte: int, max_days_diff: int = 10, r: float = 0, q: float = 0):
+    
+        ivs, dates, spots = [], [], []
+        skew_calc = SkewCalculator()
+        delta_calc = AnalyticalDelta()
+
+        for chain in self.chain_series:
+            S = chain.S
+            dates.append(chain.close_date)
+            spots.append(S)
+
+            put_prices, call_prices, strikes, actual_dte = chain.get_equal_skew_prices(dte=target_dte, max_days_diff=max_days_diff)
+            skews, new_strikes = zip(*skew_calc.calculate_parity_skew(S, put_prices, call_prices, strikes, actual_dte/365, r = r, q = q))
+            skews, new_strikes = np.array(skews), np.array(new_strikes)
+
+            deltas = np.where(new_strikes > S, delta_calc.calculate(S, new_strikes, actual_dte/365, skews, r, q, otype="call"), delta_calc.calculate(S, new_strikes, actual_dte/365, skews, r, q, otype="put"))
+            idx = np.abs(deltas - delta).argmin()
+
+            iv, K = skews[idx], new_strikes[idx]
+            ivs.append(iv)
+        
+        return ivs, dates, spots
+    
+    def floating_strike_constant_exp_iv_moneyness(self, moneyness: float, exp: str = None, target_dte: int = None, q: float = 0, max_diff_days: int = 5):
+
+        if target_dte is not None:
+            exp_data = self.chain_series[0].get_exp_from_dte(mat_days=target_dte, max_diff_days = max_diff_days)
+            exp = exp_data[0]
+
+        ivs, dates, spots = [], [], []
+        idx = 0
+
+        #for chain in self.chain_series:
+        while idx < len(self.chain_series) and self.chain_series[idx].close_date <= exp:
+            cur_chain = self.chain_series[idx]
+            S = cur_chain.S
+
+            put_prices, call_prices, strikes, actual_dte = cur_chain.get_equal_skew_prices(dte=target_dte, max_days_diff=max_diff_days)
+            moneyness_arr = strikes / S
+
+            # Note below we need to get the put and call at the same moneyness, so fo example we might have an itm put and the corresponding otm call
+            idx_moneyness = np.abs(moneyness_arr - moneyness).argmin()
+
+            put_price, call_price = put_prices[idx_moneyness], call_prices[idx_moneyness]
+            K = strikes[idx_moneyness]
+
+            T = actual_dte/365
+
+            i_rate = implied_rate(call_price, put_price, S, K, T)
+            iv = self.iv_calc.calculate(put_price, S, K, T, r=i_rate, otype="put", q=q)
+
+            ivs.append(iv)
+            dates.append(cur_chain.close_date)
+            spots.append(S)
+            idx += 1
+        
+        return ivs, dates, spots
+
+    def floating_strike_constant_exp_iv_delta(self, delta: float, exp: str = None, target_dte: int = None, r: float = 0, q: float = 0, max_diff_days: int = 10):
+
+        if target_dte is not None:
+            exp_data = self.chain_series[0].get_exp_from_dte(mat_days=target_dte, max_diff_days = max_diff_days)
+            exp = exp_data[0]
+
+        ivs, dates, spots = [], [], []
+        skew_calc = SkewCalculator()
+        delta_calc = AnalyticalDelta()
+        idx = 0
+
+        #for chain in self.chain_series:
+        while idx < len(self.chain_series) and self.chain_series[idx].close_date <= exp:
+            cur_chain = self.chain_series[idx]
+            S = cur_chain.S
+            spots.append(S)
+            dates.append(cur_chain.close_date)
+
+            put_prices, call_prices, strikes, actual_dte = cur_chain.get_equal_skew_prices(dte=target_dte, max_days_diff=max_diff_days)
+            skews, new_strikes = zip(*skew_calc.calculate_parity_skew(S, put_prices, call_prices, strikes, actual_dte/365, r = r, q = q))
+            skews, new_strikes = np.array(skews), np.array(new_strikes)
+
+            deltas = np.where(new_strikes > S, delta_calc.calculate(S, new_strikes, actual_dte/365, skews, r, q, otype="call"), delta_calc.calculate(S, new_strikes, actual_dte/365, skews, r, q, otype="put"))
+            idx_delta = np.abs(deltas - delta).argmin()
+
+            iv, K = skews[idx_delta], new_strikes[idx_delta]
+            ivs.append(iv)
+            idx += 1
+        
+        return ivs, dates, spots
+
+    def fixed_strike_constant_exp_atm_iv(self, exp: str = None, target_dte: int = None, max_diff_days: int = 5, q: float = 0):
         """
         This function gets atm iv at an initial date and then gets the same strike iv going forward.
         It is important to note this returns a time series where the initial first iv is atm, but the second value/iv in the series will not be
           because spot most likely deviated from the atm strike.
         Note: For anything fixed strike it is best to use exp
         """
-        if dte is not None:
-            exp_data = self.chain_series[0].get_exp_from_dte(mat_days=dte, max_diff_days = max_diff_days)
+        if target_dte is not None:
+            exp_data = self.chain_series[0].get_exp_from_dte(mat_days=target_dte, max_diff_days = max_diff_days)
             exp = exp_data[0]
 
         #assert exp >= self.end_date, ("Expiration date must be after end_date")
@@ -396,13 +520,13 @@ class RollingVolatility(RollingAnalytics):
         
         return ivs, dates, spots
     
-    def fixed_strike_constant_exp_iv(self, strike: int, exp: str = None, dte: int = None, max_diff_days: int = 5, r: float = 0.00, q: float = 0):
+    def fixed_strike_constant_exp_iv(self, strike: int, exp: str = None, target_dte: int = None, max_diff_days: int = 5, r: float = 0.00, q: float = 0):
         """
         This function gives us iv at a certain strike over time where the dte changes, ex) t1 dte = 30, t2 = 29
         So it gives us the iv for a certain option contract over time.
         """
-        if dte is not None:
-            exp_data = self.chain_series[0].get_exp_from_dte(mat_days=dte, max_diff_days = max_diff_days)
+        if target_dte is not None:
+            exp_data = self.chain_series[0].get_exp_from_dte(mat_days=target_dte, max_diff_days = max_diff_days)
             exp = exp_data[0]
 
         ivs, dates, spots = [], [], []
@@ -443,6 +567,9 @@ class RollingVolatility(RollingAnalytics):
     
 
     def fixed_strike_constant_maturity_iv(self, strike: int, target_dte: int, r: float = 0, q: float = 0):
+        """
+        This method gives vol over time at a fixed strike for a constant maturity/dte, that means dte resets to the closes for ex 30 every day
+        """
         ivs, dates, spots = [], [], []
         t_target = target_dte / 365
 
