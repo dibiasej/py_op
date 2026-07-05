@@ -108,7 +108,7 @@ class RollingGVV(RollingAnalytics):
         dates, spots, _, _, _, skews, strikes = self._implied_parameter_helper(dte, r, weights)
         return dates, skews, strikes, spots
     
-    def implied_skew_moneyness(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = False, put_moneyness: float = 0.1, call_moneyness: float = 0.1):
+    def implied_fixed_strike_spot_vol_beta(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = False, put_moneyness: float = 0.1, call_moneyness: float = 0.1):
         """
         This method measures the skew curve using otm put and call ivs at a certain moneyness, then normalizes that by dividing by the strikes.
         This is a way to approximate the ATM skew slope using a finite difference type of model.
@@ -122,8 +122,11 @@ class RollingGVV(RollingAnalytics):
 
         return implied_skews, dates
 
-    def implied_skew_delta(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True, put_delta: float = -0.25, call_delta: float = 0.25):
-
+    def implied_floating_strike_spot_vol_beta(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True, put_delta: float = -0.25, call_delta: float = 0.25):
+        """
+        This method measures the skew curve using otm put and call ivs at a certain delta, then normalizes that by dividing by the strikes.
+        This is a way to approximate the ATM skew slope using a finite difference type of model.
+        """
         implied_skews, dates = [], []
         for put_iv, call_iv, K_put, K_call, spot, date, atm_iv in self._select_skew_points(dte, r, q, weights, mode="delta", put_delta=put_delta, call_delta=call_delta):
             dates.append(date)
@@ -132,7 +135,7 @@ class RollingGVV(RollingAnalytics):
 
         return implied_skews, dates
 
-    def implied_skew_fixed_strike_moneyness(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True, put_moneyness: float = 0.1, call_moneyness: float = 0.1):
+    def implied_fixed_strike_skew(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True, put_moneyness: float = 0.1, call_moneyness: float = 0.1):
         """
         We call it Fixed strike because this is the convention Collin Bennet uses in his book, we may change the name in the future
         Use put_moneyness .1 and call 0 to get Collin Bennets exact definition
@@ -144,7 +147,7 @@ class RollingGVV(RollingAnalytics):
 
         return implied_skews, dates
 
-    def implied_skew_fixed_strike_delta(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True, put_delta: float = -0.25, call_delta: float = 0.25):
+    def implied_floating_strike_skew(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True, put_delta: float = -0.25, call_delta: float = 0.25):
         """
         We call it Fixed strike because this is the convention Collin Bennet uses in his book, we may change the name in the future
         Use put_moneyness .1 and call 0 to get Collin Bennets exact definition.
@@ -153,7 +156,7 @@ class RollingGVV(RollingAnalytics):
         implied_skews, dates = [], []
         for put_iv, call_iv, K_put, K_call, spot, date, atm_iv in self._select_skew_points(dte, r, q, weights, mode="delta", put_delta=put_delta, call_delta=call_delta):
             dates.append(date)
-            implied_skews.append(put_iv - call_iv)
+            implied_skews.append(put_iv - call_iv) / atm_iv
 
         return implied_skews, dates
 

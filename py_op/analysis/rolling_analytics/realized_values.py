@@ -5,6 +5,7 @@ from py_op.analysis.rolling_analytics.implied_surface import RollingVolatility
 from py_op.analysis.rolling_analytics.realized_volatility import get_realized_vol_strategy
 from py_op.utils import realized_volatility_utils as rv_utils
 from py_op.calc_engine.vol_engine.vol_funcs import variance_swap_fixed_leg_neuberger, entropy_contract_approximation
+from py_op.analysis.rolling_analytics.implied_parameters import RollingGVV
 
 """
 This module calculates all our realized metrics.
@@ -302,3 +303,38 @@ def vix_vvix_beta(start_date, end_date, window=21):
         out[i] = np.sum(dvix * dvvix) / denom
 
     return out, vix_dates[1:]
+
+
+def gvv_rolling_realized_ssr(ticker, start_date, end_date, dte, moneyness, steps, window=120, eps=1e-12, weights = True, put_moneyness=.1, call_moneyness=.1):
+    """
+    This is the formula from Bergmois smile dynamics 4, note that we are including the sum of the atmf skew in the denominator with the returns^2. This seemed weird to me but it seems correct
+    """
+    # ivs = np.asarray(ivs, dtype=float)
+    # spots = np.asarray(spots, dtype=float)
+    # atm_skews = np.asarray(atm_skews, dtype=float)
+
+    rolling_gvv = RollingGVV(ticker, start_date, end_date, moneyness=moneyness, steps = steps)
+    spot_vol_beta, dates = rolling_gvv.implied_fixed_strike_spot_vol_beta(dte=dte, weights=weights, put_moneyness=put_moneyness, call_moneyness=call_moneyness)
+    _, ivs = rolling_gvv.vol_level(dte=dte)
+    _, _, _, spots = rolling_gvv.skew_curve(dte=dte)
+
+    returns = np.log(spots[1:] / spots[:-1])
+    iv_changes = ivs[1:] - ivs[:-1]
+
+    # align skew to the return/iv-change dates
+    skews = spot_vol_beta[:-1]
+
+    ssrs, out_dates = [], []
+
+    for i in range(len(returns) - window + 1):
+        r = returns[i:i+window]
+        dvol = iv_changes[i:i+window]
+        psi = skews[i:i+window]
+
+        num = np.sum(dvol * r)
+        den = np.sum(psi * r**2)
+
+        ssrs.append(num / (den + eps))
+        out_dates.append(dates[i + window])
+
+    return np.asarray(ssrs), out_dates

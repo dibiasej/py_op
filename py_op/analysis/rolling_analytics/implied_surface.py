@@ -203,6 +203,7 @@ class RollingSkew(RollingAnalytics):
 
                 idx_put  = np.abs(moneyness_arr - (1 - put_moneyness)).argmin()
                 idx_call = np.abs(moneyness_arr - (1 + call_moneyness)).argmin()
+                idx_atm = np.abs(moneyness_arr - 1).argmin()
 
                 put_price,  K_put  = float(put_prices[idx_put]),  float(strikes[idx_put])
                 put_price_for_call,  K_put_for_call  = float(put_prices[idx_call]),  float(strikes[idx_call])
@@ -210,18 +211,26 @@ class RollingSkew(RollingAnalytics):
                 call_price, K_call = float(call_prices[idx_call]), float(strikes[idx_call])
                 call_price_for_put, K_call_for_put = float(call_prices[idx_put]), float(strikes[idx_put])
 
+                atm_call_price, atm_put_price, atm_K = float(call_prices[idx_atm]), float(put_prices[idx_atm]), float(strikes[idx_atm])
+
                 if self.parity_iv_relation == True:
 
                     put_i_rate = implied_rate(call_price_for_put, put_price, S, K_put, actual_dte/365)
                     call_i_rate = implied_rate(call_price, put_price_for_call, S, K_call, actual_dte/365)
+                    atm_i_rate = implied_rate(atm_call_price, atm_put_price, S, atm_K, actual_dte/365)
 
                     put_iv  = self.iv_calc.calculate(put_price,  S, K_put,  actual_dte/365, otype="put", r = put_i_rate)
                     call_iv = self.iv_calc.calculate(call_price, S, K_call, actual_dte/365, otype="call", r = call_i_rate)
+                    atm_iv = self.iv_calc.calculate(atm_put_price,  S, atm_K,  actual_dte/365, otype="put", r = atm_i_rate)
 
                 else:
 
                     put_iv  = self.iv_calc.calculate(put_price,  S, K_put,  actual_dte/365, otype="put")
                     call_iv = self.iv_calc.calculate(call_price, S, K_call, actual_dte/365, otype="call")
+
+                    atm_put_iv = self.iv_calc.calculate(atm_put_price,  S, atm_K,  actual_dte/365, otype="put")
+                    atm_call_iv = self.iv_calc.calculate(atm_call_price, S, atm_K, actual_dte/365, otype="call")
+                    atm_iv = (atm_put_iv + atm_call_iv) / 2
 
             elif mode == "delta":
 
@@ -239,19 +248,34 @@ class RollingSkew(RollingAnalytics):
 
                 idx_put  = np.abs(deltas - put_delta).argmin()
                 idx_call = np.abs(deltas - call_delta).argmin()
+                idx_atm_call = np.abs(deltas - .5).argmin() # this technically get call delta idx
+                idx_atm_put = np.abs(deltas - (-.5)).argmin()
 
                 put_iv,  K_put  = float(ivs[idx_put]),  float(new_strikes[idx_put])
                 call_iv, K_call = float(ivs[idx_call]), float(new_strikes[idx_call])
 
+                atm_iv_put,  atm_K_put  = float(ivs[idx_atm_put]),  float(new_strikes[idx_atm_put])
+                atm_iv_call,  atm_K_call  = float(ivs[idx_atm_call]),  float(new_strikes[idx_atm_call])
+
+                atm_dist_put = abs(S - atm_K_put)
+                atm_dist_call = abs(S - atm_K_call)
+
+                atm_iv = atm_iv_put if atm_dist_put < atm_dist_call else atm_iv_call
+                atm_K = atm_K_put if atm_dist_put < atm_dist_call else atm_K_call
+
             else:
                 raise ValueError("mode must be 'moneyness' or 'delta'")
 
-            yield put_iv, call_iv, K_put, K_call, S, date
+            yield put_iv, call_iv, atm_iv, K_put, K_call, atm_K, S, date
 
-    def implied_skew_moneyness(self, target_dte: int, max_days_diff: int = 20, put_moneyness: float = 0.1, call_moneyness: float = 0.1):
+    def implied_fixed_strike_spot_vol_beta(self, target_dte: int, max_days_diff: int = 20, put_moneyness: float = 0.1, call_moneyness: float = 0.1):
+        """
+        This uses moneyness but is fixed strike
+        Old Name pre 7/2/2026: implied_skew_moneyness
+        """
         implied_skews, dates = [], []
 
-        for put_iv, call_iv, K_put, K_call, S, date in self._select_skew_points(target_dte, max_days_diff=max_days_diff, mode="moneyness", put_moneyness=put_moneyness, call_moneyness=call_moneyness):
+        for put_iv, call_iv, atm_iv, K_put, K_call, atm_K, S, date in self._select_skew_points(target_dte, max_days_diff=max_days_diff, mode="moneyness", put_moneyness=put_moneyness, call_moneyness=call_moneyness):
             
             dates.append(date)
             denom = (K_put - K_call) / S
@@ -259,29 +283,52 @@ class RollingSkew(RollingAnalytics):
 
         return implied_skews, dates
 
-    def implied_skew_fixed_strike_moneyness(self, target_dte: int, max_days_diff: int = 20, put_moneyness: float = 0.1, call_moneyness: float = 0.1):
+    def implied_fixed_strike_skew(self, target_dte: int, max_days_diff: int = 20, put_moneyness: float = 0.1, call_moneyness: float = 0.1):
+        """
+        This uses moneyness but it is still technically fixed strike, This is Collin Bennets definition for fixed strike skew.
+        """
         implied_skews, dates = [], []
 
-        for put_iv, call_iv, _, _, _, date in self._select_skew_points(target_dte, max_days_diff=max_days_diff, mode="moneyness", put_moneyness=put_moneyness, call_moneyness=call_moneyness):
+        for put_iv, call_iv, atm_iv, _, _, _, _, date in self._select_skew_points(target_dte, max_days_diff=max_days_diff, mode="moneyness", put_moneyness=put_moneyness, call_moneyness=call_moneyness):
             dates.append(date)
             implied_skews.append(put_iv - call_iv)
 
         return implied_skews, dates
 
-    def implied_skew_delta(self, target_dte: int, max_days_diff: int = 20, r: float = 0.04, q: float = 0.0, put_delta: float = -0.25, call_delta: float = 0.25):
+    def implied_floating_strike_spot_vol_beta(self, target_dte: int, max_days_diff: int = 20, r: float = 0.04, q: float = 0.0, put_delta: float = -0.25, call_delta: float = 0.25):
+        """
+        This is floating strike spot vol beta (floating strike skew would replace the denominator with atm iv), this uses delta
+        Old Name as of 7/2/2026: implied_skew_delta
+        """
         implied_skews, dates = [], []
 
-        for put_iv, call_iv, K_put, K_call, spot, date in self._select_skew_points(target_dte, max_days_diff=max_days_diff, r=r, q=q, mode="delta", put_delta=put_delta, call_delta=call_delta):
+        for put_iv, call_iv, atm_iv, K_put, K_call, _, spot, date in self._select_skew_points(target_dte, max_days_diff=max_days_diff, r=r, q=q, mode="delta", put_delta=put_delta, call_delta=call_delta):
             dates.append(date)
             denom = (K_put - K_call) / spot
             implied_skews.append((put_iv - call_iv) / denom)
 
         return implied_skews, dates
 
-    def implied_skew_fixed_strike_delta(self, target_dte: int, max_days_diff: int = 20, r: float = 0.04, q: float = 0.0, put_delta: float = -0.25, call_delta: float = 0.25):
+    def implied_floating_strike_skew(self, target_dte: int, max_days_diff: int = 20, r: float = 0.04, q: float = 0.0, put_delta: float = -0.25, call_delta: float = 0.25):
+        """
+        Based on Collin Bennets definition floating strike skew uses delta/sigma atm
+        """
         implied_skews, dates = [], []
 
-        for put_iv, call_iv, _, _, _, date in self._select_skew_points(target_dte, max_days_diff=max_days_diff, r=r, q=q, mode="delta", put_delta=put_delta, call_delta=call_delta):
+        for put_iv, call_iv, atm_iv, _, _, _, _, date in self._select_skew_points(target_dte, max_days_diff=max_days_diff, r=r, q=q, mode="delta", put_delta=put_delta, call_delta=call_delta):
+
+            dates.append(date)
+            implied_skews.append(put_iv - call_iv) / atm_iv
+
+        return implied_skews, dates
+    
+    def implied_skew_delta(self, target_dte: int, max_days_diff: int = 20, r: float = 0.04, q: float = 0.0, put_delta: float = -0.25, call_delta: float = 0.25):
+        """
+        This function just takes the difference between two delta IV's. 
+        """
+        implied_skews, dates = [], []
+
+        for put_iv, call_iv, atm_iv, _, _, _, _, date in self._select_skew_points(target_dte, max_days_diff=max_days_diff, r=r, q=q, mode="delta", put_delta=put_delta, call_delta=call_delta):
 
             dates.append(date)
             implied_skews.append(put_iv - call_iv)
