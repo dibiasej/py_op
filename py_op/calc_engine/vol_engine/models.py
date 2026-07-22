@@ -5,6 +5,9 @@ from scipy.optimize import minimize
 
 from ..greeks.analytical_greeks import AnalyticalGamma, AnalyticalTheta, AnalyticalVanna, AnalyticalVolga, AnalyticalVega, AnalyticalSpeed, AnalyticalUltima, AnalyticalZomma, AnalyticalVolgaSpot
 from py_op.utils.model_utils import GVVUtils
+from py_op.calc_engine.calibration import model_optimization
+from py_op.utils.adapters import ErrorFunctionAdapter
+from py_op.calc_engine.option_pricing.analytical_solutions import SABRAnalytical
 
 """
 IV Parameterizations: 
@@ -15,7 +18,7 @@ IV Parameterizations:
     - Normalized log moneyness iv = f(ln(K/S) / ATM IV*sqrt(T))   (ATM IV is our anchor vol, or use ATMF)
 """
 
-class InterpolationBaseClass:
+class VolatilityModelBaseClass:
 
     def skew(self):
         pass
@@ -23,7 +26,7 @@ class InterpolationBaseClass:
     def implied_parameters(self):
         pass
 
-class PolynomialNatenburg(InterpolationBaseClass):
+class PolynomialNatenburg(VolatilityModelBaseClass):
     """
     This class is based of the polynomial skew fitting model from natenburg.
     We can calculate skew using the skew method and pass in spot strikes, atm iv, skewness and kurtosis.
@@ -79,7 +82,7 @@ class PolynomialNatenburg(InterpolationBaseClass):
         return a, b, c
     
 
-class GVV(GVVUtils, InterpolationBaseClass):
+class GVV(GVVUtils, VolatilityModelBaseClass):
     """
     This version of GVV works really well, it gets us the correct coefficients and has two good fitting methods.
     In the future we should try to add some type of weighting mechanism to the linear regression, it will probably fit the skew polynomial better.
@@ -149,7 +152,7 @@ class GVV(GVVUtils, InterpolationBaseClass):
                 new_strikes.append(K)
         return np.array(ivs_rooted), np.array(new_strikes)
 
-    def implied_parameters(self, S: float, strikes: list[float], ivs: list[float], dte: float, weights: bool = False, scale_spot_vol = False) -> (float, float, float):
+    def implied_parameters(self, S: float, strikes: list[float], ivs: list[float], dte: float, weights: bool = True, scale_spot_vol = False) -> (float, float, float):
         """
         When we use inverse vega weighting with out multiplying the denominator of spot vol it matches the parameters frido gets perfectly but sometimes it does go below -1 which doesnt make sense
         b1, b2, b3 are all perfect, so that means b2 = spot vol covariance
@@ -168,6 +171,19 @@ class GVV(GVVUtils, InterpolationBaseClass):
 
         #spot_vol_corr = np.clip(spot_vol_corr, -0.999, 0.999)
         return vol_level, spot_vol_corr, vol_vol
+
+    def skew_closed_form(self, F, strikes, vol_level, spot_vol_corr, vol_vol) -> (list[float], list[float]):
+        """
+        This version fits decently well, the skew bisection fits a lot better, but this one is less succeptible to outliers.
+        I am not sure if this is the closed form but we should try to see if it is and not make a version for the close form.      
+        """
+        strikes = np.linspace(strikes[0], strikes[-1], 200) # interpolate strikes
+
+        var_level = vol_level**2
+        vol_var = vol_vol**2
+
+        gvv_fit = np.sqrt(abs(var_level + 2*spot_vol_corr*vol_level*vol_vol*np.log(strikes/F) + vol_var*(np.log(strikes/F)**2)))
+        return gvv_fit, strikes
     
     def surface(self, strike_min, strike_max, dtes):
         pass
@@ -343,19 +359,46 @@ class SVI:
         total_var = a + b * (rho*(k - m) + np.sqrt((k - m)**2 + sigma**2))
         return np.sqrt(total_var/dte)
 
-class IRV5(InterpolationBaseClass):
+class SABR(VolatilityModelBaseClass):
+
+    def __init__(self, pricing_method = SABRAnalytical(), optimizer = model_optimization.SABROptimizer, error_func = ErrorFunctionAdapter().sabr):
+        self.pricing_method = pricing_method
+        self.error_func = error_func
+        self.optimizer = optimizer(self.pricing_method, self.error_func)
+        
+
+    def implied_parameters(self, S, strikes, ivs, dte):
+        """
+        Make sure the dte we pass in is divided by 365
+        
+        """
+        params = self.optimizer.optimize(S, strikes, ivs, dte)
+
+        inst_iv = params[0] / np.sqrt(S)
+        vol_vol = params[1]
+        spot_vol_corr = params[2]
+        return inst_iv, spot_vol_corr, vol_vol
+    
+    def skew(self, S, strikes, ivs, dte):
+        # call implied parameters
+        # calculate otm put and call prices using parameters and sabr analytical
+        # use inverse gaussian to get skew
+        pass
+
+
+class IRV5(VolatilityModelBaseClass):
     pass
 
-class VGVV(InterpolationBaseClass):
+class VGVV(VolatilityModelBaseClass):
     pass
 
-class SSVI(InterpolationBaseClass):
+class SSVI(VolatilityModelBaseClass):
     pass
 
-class ThreeToSmile(InterpolationBaseClass):
+class ThreeToSmile(VolatilityModelBaseClass):
     pass
 
-class VannaVolga(InterpolationBaseClass):
+class VannaVolga(VolatilityModelBaseClass):
     pass
 
 
@@ -422,7 +465,7 @@ class GVVDollarGreeks:
 # GVV
 
 
-class GVVOld(GVVUtils, InterpolationBaseClass):
+class GVVOld(GVVUtils, VolatilityModelBaseClass):
 
     def __init__(self, model_theta = AnalyticalTheta(), model_gamma = AnalyticalGamma(), model_vanna = AnalyticalVanna(), model_volga = AnalyticalVolga()) -> None:
         super().__init__(model_theta, model_gamma, model_vanna, model_volga)

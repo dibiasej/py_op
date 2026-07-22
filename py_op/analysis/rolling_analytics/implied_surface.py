@@ -283,18 +283,6 @@ class RollingSkew(RollingAnalytics):
 
         return implied_skews, dates
 
-    def implied_fixed_strike_skew(self, target_dte: int, max_days_diff: int = 20, put_moneyness: float = 0.1, call_moneyness: float = 0.1):
-        """
-        This uses moneyness but it is still technically fixed strike, This is Collin Bennets definition for fixed strike skew.
-        """
-        implied_skews, dates = [], []
-
-        for put_iv, call_iv, atm_iv, _, _, _, _, date in self._select_skew_points(target_dte, max_days_diff=max_days_diff, mode="moneyness", put_moneyness=put_moneyness, call_moneyness=call_moneyness):
-            dates.append(date)
-            implied_skews.append(put_iv - call_iv)
-
-        return implied_skews, dates
-
     def implied_floating_strike_spot_vol_beta(self, target_dte: int, max_days_diff: int = 20, r: float = 0.04, q: float = 0.0, put_delta: float = -0.25, call_delta: float = 0.25):
         """
         This is floating strike spot vol beta (floating strike skew would replace the denominator with atm iv), this uses delta
@@ -306,6 +294,18 @@ class RollingSkew(RollingAnalytics):
             dates.append(date)
             denom = (K_put - K_call) / spot
             implied_skews.append((put_iv - call_iv) / denom)
+
+        return implied_skews, dates
+
+    def implied_fixed_strike_skew(self, target_dte: int, max_days_diff: int = 20, put_moneyness: float = 0.1, call_moneyness: float = 0.1):
+        """
+        This uses moneyness but it is still technically fixed strike, This is Collin Bennets definition for fixed strike skew.
+        """
+        implied_skews, dates = [], []
+
+        for put_iv, call_iv, atm_iv, _, _, _, _, date in self._select_skew_points(target_dte, max_days_diff=max_days_diff, mode="moneyness", put_moneyness=put_moneyness, call_moneyness=call_moneyness):
+            dates.append(date)
+            implied_skews.append(put_iv - call_iv)
 
         return implied_skews, dates
 

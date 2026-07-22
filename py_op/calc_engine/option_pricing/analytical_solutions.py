@@ -127,17 +127,38 @@ class SABRAnalytical(mu.SABRUtils):
     """
     Note Normal vol is not sigma it is a different type of vol we get from the sabr normal vol class
     """
-    
-    @staticmethod
-    def call(S: float, K: int, T: float, sigma_0: float, alpha: float, rho: float, beta: float = 0.5, r: float = 0.04, q: float = 0):
-        normal_vol = SABRAnalytical.normal_vol(S, K, T, sigma_0, alpha, beta, rho)
-        return BachelierAnalytical().call(S, K, T, normal_vol, r)
-    
-    @staticmethod
-    def put(cls, S: float, K: int, T: float, sigma_0: float, alpha: float, rho: float, beta: float = 0.5, r: float = 0, q: float = 0):
-        normal_vol = SABRAnalytical().normal_vol(S, K, T, sigma_0, alpha, beta, rho)
-        return BachelierAnalytical().put(S, K, T, normal_vol, r)
 
+    def __init__(self, vol_type: str = "lognormal"):
+        vol_type = vol_type.lower().replace(" ", "")
+
+        if vol_type not in {"normal", "lognormal"}:
+            raise ValueError(
+                "vol_type must be either 'normal' or 'lognormal'"
+            )
+
+        self.vol_type = vol_type
+    
+    def call(self, S: float, K: int, T: float, sigma_0: float, alpha: float, rho: float, beta: float = 0.5, r: float = 0.04, q: float = 0):
+
+        if self.vol_type == "normal":
+            normal_vol = SABRAnalytical.normal_vol(S, K, T, sigma_0, alpha, beta, rho)
+            return BachelierAnalytical().call(S, K, T, normal_vol, r)
+        
+        elif self.vol_type == "lognormal":
+            sigma_0 = sigma_0*S**(1 - beta)
+            log_normal_vol = SABRAnalytical.lognormal_vol(S, K, T, sigma_0, alpha, beta, rho)
+            return BlackScholesMertonAnalytical().call(S, K, T, log_normal_vol, r)
+
+    def put(self, S: float, K: int, T: float, sigma_0: float, alpha: float, rho: float, beta: float = 0.5, r: float = 0, q: float = 0):
+
+        if self.vol_type == "normal":
+            normal_vol = SABRAnalytical().normal_vol(S, K, T, sigma_0, alpha, beta, rho)
+            return BachelierAnalytical().put(S, K, T, normal_vol, r)
+
+        elif self.vol_type == "lognormal":
+            sigma_0 = sigma_0*S**(1 - beta)
+            log_normal_vol = SABRAnalytical.lognormal_vol(S, K, T, sigma_0, alpha, beta, rho)
+            return BlackScholesMertonAnalytical().put(S, K, T, log_normal_vol, r)
 
 class AnalyticalPriceFactory:
     @staticmethod

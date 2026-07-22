@@ -1,6 +1,6 @@
 import numpy as np
 
-from calc_engine.option_pricing.analytical_solutions import BlackScholesMertonAnalytical
+from py_op.calc_engine.option_pricing.analytical_solutions import BlackScholesMertonAnalytical
 
 def breenden_litzenberger(prices, strikes, dte, r):
     """
@@ -47,4 +47,4 @@ def breeden_litzenberger_ivs(S, ivs, strikes, dte, r = 0.04, q = 0, otype = "cal
     elif otype == "put":
         prices = bsm.put(S, strikes, dte, ivs, r, q)
 
-    return breenden_litzenberger(prices, strikes, r)
+    return breenden_litzenberger(prices, strikes, dte, r)

@@ -2,7 +2,7 @@ import numpy as np
 
 from py_op.data.builders.option_chain_builder import create_chain_series
 from py_op.calc_engine.vol_engine.iv_calc import RootFinder, InverseGaussian
-from py_op.calc_engine.vol_engine.interpolation_models import GVV
+from py_op.calc_engine.vol_engine.models import GVV
 from py_op.calc_engine.vol_engine.iv_calc import SkewCalculator
 from py_op.calc_engine.greeks.analytical_greeks import AnalyticalDelta
 
@@ -160,14 +160,26 @@ class RollingGVV(RollingAnalytics):
 
         return implied_skews, dates
 
-    def implied_skewness(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True):
+    def implied_skewness_retail_option_trading(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True):
         """
         This is the implied skewness/measurement of the implied volatility curve given in Euan Sinclairs retail option trading book.
         """
         implied_skews, dates, atm_ivs = [], [], []
         for put_iv, call_iv, K_put, K_call, spot, date, atm_iv in self._select_skew_points(dte, r, q, weights, mode="delta", put_delta=-0.25, call_delta=0.25):
             dates.append(date)
-            implied_skews.append(4.448 * ((put_iv - call_iv) / atm_iv))
+            implied_skews.append(4.448 * ((call_iv - put_iv) / atm_iv))
+            atm_ivs.append(atm_iv)
+
+        return implied_skews, dates
+
+    def implied_kurtosis_retail_option_trading(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = True):
+        """
+        This is the implied kurtosis/measurement of the implied volatility curve given in Euan Sinclairs retail option trading book.
+        """
+        implied_skews, dates, atm_ivs = [], [], []
+        for put_iv, call_iv, K_put, K_call, spot, date, atm_iv in self._select_skew_points(dte, r, q, weights, mode="delta", put_delta=-0.25, call_delta=0.25):
+            dates.append(date)
+            implied_skews.append(26.4156592 * (call_iv - 2*atm_iv + put_iv))
             atm_ivs.append(atm_iv)
 
         return implied_skews, dates

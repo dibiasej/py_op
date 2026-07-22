@@ -21,8 +21,9 @@ from py_op.calc_engine.vol_engine.iv_calc import (
     TermStructureCalculator,
 )
 
-from py_op.calc_engine.vol_engine import interpolation_models
-        
+from py_op.calc_engine.vol_engine import models
+from py_op.calc_engine.densities import risk_neutral_densities
+
 from py_op.data.price_data import process_price_data
 
 from py_op.data.builders.option_chain_builder import create_chain, create_chain_series
@@ -46,7 +47,7 @@ __all__ = [
     "NewtonsMethod",
     "SkewCalculator",
     "TermStructureCalculator",
-    "interpolation_models",
+    "models",
     # Data
     "process_price_data",
     "create_chain", 

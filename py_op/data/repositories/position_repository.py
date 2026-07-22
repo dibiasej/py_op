@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 from py_op.global_variables import OPTION_DB_DIR
 from py_op.utils.db_utils import get_connection
@@ -53,13 +54,7 @@ class PositionSeriesRepository:
 
         query = """
         WITH ranked AS (
-            SELECT
-                o.close_date,
-                o.mid_price,
-                CAST(o.strike AS REAL) AS strike,
-                o.dte,
-                o.price,
-                CAST(s.close AS REAL) AS spot,
+            SELECT o.close_date, o.mid_price, CAST(o.strike AS REAL) AS strike, o.dte, o.price, CAST(s.close AS REAL) AS spot,
                 ROW_NUMBER() OVER (
                     PARTITION BY o.close_date
                     ORDER BY ABS((CAST(o.strike AS REAL) / CAST(s.close AS REAL)) - ?) ASC
@@ -75,6 +70,51 @@ class PositionSeriesRepository:
         """
 
         params = [float(moneyness), ticker, expiration, option_type]
+
+        if start_date is not None:
+            query += " AND o.close_date >= ?"
+            params.append(start_date)
+
+        if end_date is not None:
+            query += " AND o.close_date <= ?"
+            params.append(end_date)
+
+        query += """
+        )
+        SELECT close_date, mid_price, strike, dte, price, spot
+        FROM ranked
+        WHERE rn = 1
+        ORDER BY close_date;
+        """
+
+        cur = self.conn.cursor()
+        cur.execute(query, params)
+        return cur.fetchall()
+    
+    def test_moneyness_function(self, ticker: str, dte: int, moneyness: float, option_type: str = "call", start_date: str | None = None, end_date: str | None = None):
+        if dte < 0:
+            raise ValueError("dte must be greater than or equal to 0.")
+
+        query = """
+        WITH ranked AS (
+            SELECT o.close_date, o.mid_price, CAST(o.strike AS REAL) AS strike, o.dte, o.price, CAST(s.close AS REAL) AS spot,
+                ROW_NUMBER() OVER (
+                    PARTITION BY o.close_date
+                    ORDER BY 
+                        ABS(CAST(o.dte AS INTEGER) - ?) ASC,
+                        ABS((CAST(o.strike AS REAL) / CAST(s.close AS REAL)) - ?) ASC
+                ) AS rn
+            FROM option_data o
+            JOIN spot_prices s
+            ON s.ticker = o.ticker
+            AND s.close_date = o.close_date
+            WHERE o.ticker = ?
+            AND o.option_type = ?
+            AND s.close > 0
+            AND o.dte IS NOT NULL
+        """
+
+        params = [int(dte), float(moneyness), ticker, option_type]
 
         if start_date is not None:
             query += " AND o.close_date >= ?"
