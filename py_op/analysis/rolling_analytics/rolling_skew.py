@@ -1,26 +1,29 @@
 import numpy as np
 
 from py_op.data.builders.option_chain_builder import create_chain_series
-from py_op.calc_engine.vol_engine.iv_calc import RootFinder, InverseGaussian
+from py_op.calc_engine.vol_engine.iv_calc import InverseGaussian
 from py_op.calc_engine.vol_engine.skew_models import VolatilityModel
+from py_op.calc_engine.vol_engine.iv_calc import SkewCalculator
+from py_op.calc_engine.greeks.analytical_greeks import AnalyticalDelta
 
 class RollingAnalytics:
 
-    def __init__(self, ticker: str, start_date: str, end_date:str, moneyness: float = None, steps: int = 1, iv_calc = InverseGaussian()) -> None:
+    def __init__(self, ticker: str, start_date: str, end_date:str, moneyness: float = None, steps: int = 1) -> None:
         self.ticker = ticker
         self.start_date = start_date
         self.end_date = end_date
         self.moneyness = moneyness
         self.steps = steps
-        self.iv_calc = iv_calc
         self.chain_series = create_chain_series(ticker, start_date, end_date, moneyness=moneyness, steps=steps)
 
 
 class ImpliedSkew(RollingAnalytics):
     
-    def __init__(self, ticker, start_date, end_date, moneyness = None, steps = 1, iv_calc=InverseGaussian(), model: VolatilityModel = None):
-        super().__init__(ticker, start_date, end_date, moneyness, steps, iv_calc)
+    def __init__(self, ticker, start_date, end_date, moneyness = None, steps = 1, model: VolatilityModel = None):
+        super().__init__(ticker, start_date, end_date, moneyness, steps)
         self.model = model
+        self.skew_calculator = SkewCalculator()
+        self.delta_calc = AnalyticalDelta()
 
     def _implied_parameters(self, dte, **kwargs):
         """
