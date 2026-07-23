@@ -380,6 +380,7 @@ class SABR(VolatilityModel):
         Make sure the dte we pass in is divided by 365
         Note usually in sabr alpha is the inst vol but in our notation we say it is vol of vol and sigma_0 is inst vol.
         """
+        strikes, ivs = np.array(strikes), np.array(ivs)
         params = self.optimizer.optimize(S, strikes, ivs, dte)
 
         inst_iv = params[0] / np.sqrt(S)
@@ -392,6 +393,7 @@ class SABR(VolatilityModel):
         """
         Note: The reason we omit call prices and call ivs is because using equal parity prices put and call ivs are the same.
         """
+        strikes, ivs = np.array(strikes), np.array(ivs)
         params = self.implied_parameters(S, strikes, ivs, dte)
         sigma_0, rho, alpha = params["inst_vol"], params["inst_spot_vol_corr"], params["inst_vol_vol"]
         # call_prices = self.pricing_method.call(S, strikes, dte, sigma_0, alpha, rho, r = r)

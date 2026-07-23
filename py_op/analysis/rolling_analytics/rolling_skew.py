@@ -63,7 +63,9 @@ class ImpliedSkew(RollingAnalytics):
         return put_iv, call_iv, atm_iv, K_put, K_call, K_atm
 
     def _skew_data_generator(self, dte: float, r: float = 0.04, q: float = 0.0, mode: str = "moneyness", put_moneyness: float = 0.1, call_moneyness: float = 0.1, put_delta: float = -0.25, call_delta: float = 0.25, **kwargs):
-
+        """
+        dte passed into this method should not be divided by 365
+        """
         for chain in self.chain_series:
             close_date = chain.close_date
             S = chain.S
@@ -79,17 +81,18 @@ class ImpliedSkew(RollingAnalytics):
                 params = self.model.implied_parameters(S, new_strikes, parity_ivs, actual_dte/365, **kwargs)
                 ivs, selected_strikes = self.model.skew(S, new_strikes, parity_ivs, actual_dte/365, **kwargs)
 
-            put_iv, call_iv, atm_iv, K_put, K_call, K_atm = self.temp_select_skew_points(S, ivs, selected_strikes, actual_dte/365, r, q, mode, put_moneyness, call_moneyness, put_delta, call_delta)
+            put_iv, call_iv, atm_iv, K_put, K_call, K_atm = self._fetch_skew_points(S, ivs, selected_strikes, actual_dte/365, r, q, mode, put_moneyness, call_moneyness, put_delta, call_delta)
 
             yield put_iv, call_iv, atm_iv, K_put, K_call, K_atm, close_date, S, ivs, strikes, params
 
     def atm_iv_model_test(self, dte: float, r: float = 0.04, q: float = 0.0, mode: str = "moneyness", put_moneyness: float = 0.1, call_moneyness: float = 0.1, put_delta: float = -0.25, call_delta: float = 0.25, **kwargs):
-        atm_ivs, inst_vols = [], []
+        atm_ivs, inst_vols, dates = [], [], []
         for put_iv, call_iv, atm_iv, K_put, K_call, K_atm, close_date, S, ivs, strikes, params in self._skew_data_generator(dte, r, q, mode, put_moneyness, call_moneyness, put_delta, call_delta, **kwargs):
             atm_ivs.append(atm_iv)
             inst_vols.append(params["inst_vol"])
+            dates.append(close_date)
 
-        return atm_ivs, inst_vols
+        return atm_ivs, inst_vols, dates
 
     def implied_inst_spot_vol_corr(self, dte, **kwargs):
         """
@@ -103,10 +106,10 @@ class ImpliedSkew(RollingAnalytics):
 
         return spots, dates, spot_vol_corrs
     
-    def skew_curves(self, dte: float, r: float, q: float, **kwargs) -> (list[float], list[str], list[float]):
+    def skew_curves(self, dte: float, r: float = .04, q: float = 0, **kwargs) -> (list[float], list[str], list[float]):
 
         spots, dates, skews = [], [], []
-        for put_iv, call_iv, atm_iv, K_put, K_call, K_atm, close_date, S, ivs, strikes in self._skew_data_generator(dte, r, q, **kwargs):
+        for put_iv, call_iv, atm_iv, K_put, K_call, K_atm, close_date, S, ivs, strikes, params in self._skew_data_generator(dte, r, q, **kwargs):
             spots.append(S)
             dates.append(close_date)
             skews.append(ivs)
