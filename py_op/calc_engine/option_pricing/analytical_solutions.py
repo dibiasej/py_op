@@ -160,20 +160,20 @@ class SABRAnalytical(mu.SABRUtils):
             log_normal_vol = SABRAnalytical.lognormal_vol(S, K, T, sigma_0, alpha, beta, rho)
             return BlackScholesMertonAnalytical().put(S, K, T, log_normal_vol, r)
 
-class AnalyticalPriceFactory:
-    @staticmethod
-    def create_model(model_name):
-        match model_name.lower():
-            case 'bachelier' | 'bach':
-                return BachelierAnalytical
-            case 'blackscholesmerton' | "blackscholes" | 'bsm' | 'bs' | 'black scholes merton':
-                return BlackScholesMertonAnalytical
-            case 'constant elasticity variance' | "cev":
-                return CEVAnalytical
-            case 'sabr':
-                return SABRAnalytical
-            case _:
-                raise ValueError(f"Unknown model name: {model_name}")
+# class AnalyticalPriceFactory:
+#     @staticmethod
+#     def create_model(model_name):
+#         match model_name.lower():
+#             case 'bachelier' | 'bach':
+#                 return BachelierAnalytical
+#             case 'blackscholesmerton' | "blackscholes" | 'bsm' | 'bs' | 'black scholes merton':
+#                 return BlackScholesMertonAnalytical
+#             case 'constant elasticity variance' | "cev":
+#                 return CEVAnalytical
+#             case 'sabr':
+#                 return SABRAnalytical
+#             case _:
+#                 raise ValueError(f"Unknown model name: {model_name}")
 
 def main():
 

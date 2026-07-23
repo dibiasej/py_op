@@ -2,7 +2,7 @@ import numpy as np
 
 from py_op.data.builders.option_chain_builder import create_chain_series
 from py_op.calc_engine.vol_engine.iv_calc import RootFinder, InverseGaussian
-from py_op.calc_engine.vol_engine.models import GVV
+from py_op.calc_engine.vol_engine.skew_models import GVV
 from py_op.calc_engine.vol_engine.iv_calc import SkewCalculator
 from py_op.calc_engine.greeks.analytical_greeks import AnalyticalDelta
 

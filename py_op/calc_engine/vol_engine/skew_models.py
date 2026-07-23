@@ -2,12 +2,14 @@ import numpy as np
 from scipy.optimize import least_squares
 from scipy.stats import norm
 from scipy.optimize import minimize  
+from abc import ABC, abstractmethod
 
 from ..greeks.analytical_greeks import AnalyticalGamma, AnalyticalTheta, AnalyticalVanna, AnalyticalVolga, AnalyticalVega, AnalyticalSpeed, AnalyticalUltima, AnalyticalZomma, AnalyticalVolgaSpot
 from py_op.utils.model_utils import GVVUtils
 from py_op.calc_engine.calibration import model_optimization
 from py_op.utils.adapters import ErrorFunctionAdapter
 from py_op.calc_engine.option_pricing.analytical_solutions import SABRAnalytical
+from py_op.calc_engine.vol_engine.iv_calc import InverseGaussian
 
 """
 IV Parameterizations: 
@@ -18,15 +20,17 @@ IV Parameterizations:
     - Normalized log moneyness iv = f(ln(K/S) / ATM IV*sqrt(T))   (ATM IV is our anchor vol, or use ATMF)
 """
 
-class VolatilityModelBaseClass:
+class VolatilityModel(ABC):
 
+    @abstractmethod
     def skew(self):
         pass
 
+    @abstractmethod
     def implied_parameters(self):
         pass
 
-class PolynomialNatenburg(VolatilityModelBaseClass):
+class PolynomialNatenburg(VolatilityModel):
     """
     This class is based of the polynomial skew fitting model from natenburg.
     We can calculate skew using the skew method and pass in spot strikes, atm iv, skewness and kurtosis.
@@ -81,8 +85,11 @@ class PolynomialNatenburg(VolatilityModelBaseClass):
         a, b, c = beta
         return a, b, c
     
+    def implied_parameters(self):
+        pass
+    
 
-class GVV(GVVUtils, VolatilityModelBaseClass):
+class GVV(GVVUtils, VolatilityModel):
     """
     This version of GVV works really well, it gets us the correct coefficients and has two good fitting methods.
     In the future we should try to add some type of weighting mechanism to the linear regression, it will probably fit the skew polynomial better.
@@ -92,7 +99,7 @@ class GVV(GVVUtils, VolatilityModelBaseClass):
     def __init__(self, model_theta = AnalyticalTheta(), model_gamma = AnalyticalGamma(), model_vanna = AnalyticalVanna(), model_volga = AnalyticalVolga()) -> None:
         super().__init__(model_theta, model_gamma, model_vanna, model_volga)
 
-    def coefficients(self, S: float, strikes: list[float], ivs: list[float], dte: float, weights: bool = False) -> (float, float, float):
+    def coefficients(self, S: float, strikes: list[float], ivs: list[float], dte: float, weights: bool = True) -> (float, float, float):
         """
         This method calculates the coefficients of the model
         """
@@ -170,7 +177,8 @@ class GVV(GVVUtils, VolatilityModelBaseClass):
             spot_vol_corr = b2 / (vol_level*vol_vol)
 
         #spot_vol_corr = np.clip(spot_vol_corr, -0.999, 0.999)
-        return vol_level, spot_vol_corr, vol_vol
+        # return vol_level, spot_vol_corr, vol_vol
+        return {"inst_vol": vol_level, "inst_spot_vol_corr": spot_vol_corr, "inst_vol_vol": vol_vol}
 
     def skew_closed_form(self, F, strikes, vol_level, spot_vol_corr, vol_vol) -> (list[float], list[float]):
         """
@@ -359,7 +367,7 @@ class SVI:
         total_var = a + b * (rho*(k - m) + np.sqrt((k - m)**2 + sigma**2))
         return np.sqrt(total_var/dte)
 
-class SABR(VolatilityModelBaseClass):
+class SABR(VolatilityModel):
 
     def __init__(self, pricing_method = SABRAnalytical(), optimizer = model_optimization.SABROptimizer, error_func = ErrorFunctionAdapter().sabr):
         self.pricing_method = pricing_method
@@ -370,35 +378,41 @@ class SABR(VolatilityModelBaseClass):
     def implied_parameters(self, S, strikes, ivs, dte):
         """
         Make sure the dte we pass in is divided by 365
-        
+        Note usually in sabr alpha is the inst vol but in our notation we say it is vol of vol and sigma_0 is inst vol.
         """
         params = self.optimizer.optimize(S, strikes, ivs, dte)
 
         inst_iv = params[0] / np.sqrt(S)
         vol_vol = params[1]
         spot_vol_corr = params[2]
-        return inst_iv, spot_vol_corr, vol_vol
+        # return inst_iv, spot_vol_corr, vol_vol
+        return {"inst_vol": inst_iv, "inst_spot_vol_corr": spot_vol_corr, "inst_vol_vol": vol_vol}
     
-    def skew(self, S, strikes, ivs, dte):
-        # call implied parameters
-        # calculate otm put and call prices using parameters and sabr analytical
-        # use inverse gaussian to get skew
-        pass
+    def skew(self, S, strikes, ivs, dte, r: float = 0.04):
+        """
+        Note: The reason we omit call prices and call ivs is because using equal parity prices put and call ivs are the same.
+        """
+        params = self.implied_parameters(S, strikes, ivs, dte)
+        sigma_0, rho, alpha = params["inst_vol"], params["inst_spot_vol_corr"], params["inst_vol_vol"]
+        # call_prices = self.pricing_method.call(S, strikes, dte, sigma_0, alpha, rho, r = r)
+        put_prices = self.pricing_method.put(S, strikes, dte, sigma_0, alpha, rho, r = r)
+        put_ivs = InverseGaussian().calculate(put_prices, S, strikes, dte, otype="put", r = r)
+        return put_ivs, strikes
 
 
-class IRV5(VolatilityModelBaseClass):
+class IRV5(VolatilityModel):
     pass
 
-class VGVV(VolatilityModelBaseClass):
+class VGVV(VolatilityModel):
     pass
 
-class SSVI(VolatilityModelBaseClass):
+class SSVI(VolatilityModel):
     pass
 
-class ThreeToSmile(VolatilityModelBaseClass):
+class ThreeToSmile(VolatilityModel):
     pass
 
-class VannaVolga(VolatilityModelBaseClass):
+class VannaVolga(VolatilityModel):
     pass
 
 
@@ -465,7 +479,7 @@ class GVVDollarGreeks:
 # GVV
 
 
-class GVVOld(GVVUtils, VolatilityModelBaseClass):
+class GVVOld(GVVUtils, VolatilityModel):
 
     def __init__(self, model_theta = AnalyticalTheta(), model_gamma = AnalyticalGamma(), model_vanna = AnalyticalVanna(), model_volga = AnalyticalVolga()) -> None:
         super().__init__(model_theta, model_gamma, model_vanna, model_volga)
