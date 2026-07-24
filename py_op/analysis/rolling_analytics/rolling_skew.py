@@ -18,6 +18,9 @@ class RollingAnalytics:
 
 
 class ImpliedSkew(RollingAnalytics):
+    """
+    Models: GVV, GVV5, SABR, SVI
+    """
     
     def __init__(self, ticker, start_date, end_date, moneyness = None, steps = 1, model: VolatilityModel = None):
         super().__init__(ticker, start_date, end_date, moneyness, steps)
@@ -38,6 +41,7 @@ class ImpliedSkew(RollingAnalytics):
             #F = S*np.exp(r * (actual_dte/365))
             parity_ivs, new_strikes = zip(*self.skew_calculator.calculate_parity_skew(S, put_prices, call_prices, strikes, actual_dte/365))
             params = self.model.implied_parameters(S, new_strikes, parity_ivs, actual_dte/365, **kwargs)
+            print(f"params: {params}\n")
 
             yield close_date, S, params
 
@@ -71,6 +75,7 @@ class ImpliedSkew(RollingAnalytics):
             S = chain.S
             put_prices, call_prices, strikes, actual_dte = chain.get_equal_skew_prices(dte = dte, max_days_diff=20)
             parity_ivs, new_strikes = zip(*self.skew_calculator.calculate_parity_skew(S, put_prices, call_prices, strikes, actual_dte/365))
+            parity_ivs, new_strikes = np.array(parity_ivs), np.array(new_strikes)
 
             if self.model is None or self.model == "market":
                 params = None
@@ -83,7 +88,7 @@ class ImpliedSkew(RollingAnalytics):
 
             put_iv, call_iv, atm_iv, K_put, K_call, K_atm = self._fetch_skew_points(S, ivs, selected_strikes, actual_dte/365, r, q, mode, put_moneyness, call_moneyness, put_delta, call_delta)
 
-            yield put_iv, call_iv, atm_iv, K_put, K_call, K_atm, close_date, S, ivs, strikes, params
+            yield put_iv, call_iv, atm_iv, K_put, K_call, K_atm, close_date, S, ivs, selected_strikes, params
 
     def atm_iv_model_test(self, dte: float, r: float = 0.04, q: float = 0.0, mode: str = "moneyness", put_moneyness: float = 0.1, call_moneyness: float = 0.1, put_delta: float = -0.25, call_delta: float = 0.25, **kwargs):
         atm_ivs, inst_vols, dates = [], [], []
@@ -108,14 +113,15 @@ class ImpliedSkew(RollingAnalytics):
     
     def skew_curves(self, dte: float, r: float = .04, q: float = 0, **kwargs) -> (list[float], list[str], list[float]):
 
-        spots, dates, skews = [], [], []
+        spots, dates, skews, strikes_list = [], [], [], []
         for put_iv, call_iv, atm_iv, K_put, K_call, K_atm, close_date, S, ivs, strikes, params in self._skew_data_generator(dte, r, q, **kwargs):
             spots.append(S)
             dates.append(close_date)
             skews.append(ivs)
+            strikes_list.append(strikes)
+        
+        return spots, dates, skews, strikes_list
 
-        return spots, dates, skews
-    
     def implied_fixed_strike_spot_vol_beta(self, dte: float, r: float = 0.04, q: float = 0, weights: bool = False, put_moneyness: float = 0.1, call_moneyness: float = 0.1):
         """
         This method measures the skew curve using otm put and call ivs at a certain moneyness, then normalizes that by dividing by the strikes.

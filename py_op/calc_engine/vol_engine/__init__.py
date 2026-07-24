@@ -3,5 +3,6 @@ from .skew_models import (
     PolynomialNatenburg,
     SABR,
     GVV5,
-    GVVPlus
+    GVVPlus,
+    SVI
 )

@@ -211,24 +211,40 @@ class GVV5:
         self.model_volga = model_volga
 
     def rho(self, F, K, gamma_param, m) -> list[float]:
+        """
+        rho represents a strike dependent inst spot vol corr
+        the instantaneous correlation between movements in the underlying price and movements in the implied volatility associated with that strike.
+        """
         return np.tanh(gamma_param*np.log(K / F) - m)
     
     def implied_parameters(self, F, strikes, ivs, dte) -> list[float]:
+        """
+        Parameter Interpretation:
+        sigma: inst vol
+        omega: vol of vol
+        beta: cev component, controls how vol of vol changes as vol level changes
+        gamma: strike dependence of spot vol corr, it controls how quickly correlation changes across strikes
+        m: Avg correlation / horizontal shift, it controls the average ATM forward spot vol corr
+
+        to get atm correlation take tanh(-m)
+        """
         strikes, ivs = np.array(strikes), np.array(ivs)
         #print(f"median ivs: {np.median(ivs)}")
         #x0 = np.array([np.median(ivs), 0.5, .8, -.5, .5])
         x0 = np.array([.17, 0.5, .8, -.5, .5])
 
         lb = np.array([1e-4, 1e-6, -.5,  -10.0, -.5], dtype=float)
-        ub = np.array([3.00,  4.0, 1.2,  10.0, 2.5], dtype=float)
+        ub = np.array([2.00,  4.0, 1.2,  10.0, 2.5], dtype=float)
 
         def residuals(x):
             sigma, omega, beta, gamma_param, m = x
-            iv_model = self.skew(F, strikes, ivs, dte, sigma, omega, beta, gamma_param, m)
+            iv_model, _ = self.skew(F, strikes, ivs, dte, sigma, omega, beta, gamma_param, m)
             return iv_model - ivs
         
         res = least_squares(residuals, x0=x0, bounds=(lb, ub), loss="linear")
-        return res.x
+        rhos = self.rho(F, strikes, res.x[3], res.x[4])
+        #return res.x
+        return {"inst_vol": res.x[0], "gamma": res.x[3], "inst_vol_vol": res.x[1], "beta": res.x[2], "m": res.x[4], "inst_spot_vol_corr": (np.tanh(-res.x[4]), rhos, strikes)}
     
     def skew(self, F, strikes, ivs, dte, sigma = None, omega = None, beta = None, gamma_param = None, m = None):
 
@@ -237,13 +253,14 @@ class GVV5:
             raise ValueError("Either provide all of coefficients (b1, b2, b3) or none of them.")
         
         if sigma is None and omega is None and beta is None and gamma_param is None and m is None:
-            sigma, omega, beta, gamma_param, m = self.implied_parameters(F, strikes, ivs, dte)
+            params = self.implied_parameters(F, strikes, ivs, dte)
+            sigma, omega, beta, gamma_param, m = params["inst_vol"], params["inst_vol_vol"], params["cev_comp"], params["gamma"], params["m"]
 
         gamma = self.model_gamma.calculate(F, strikes, dte, ivs)
         vanna = self.model_vanna.calculate(F, strikes, dte, ivs)
         volga = self.model_volga.calculate(F, strikes, dte, ivs)
         
-        return np.sqrt(sigma ** 2 + 2*self.rho(F, strikes, gamma_param, m) * omega * sigma * ivs ** beta * vanna * (1 / (F*gamma)) + omega**2 * ivs ** (2*beta) * volga * (1 / (F**2 * gamma)))
+        return np.sqrt(sigma ** 2 + 2*self.rho(F, strikes, gamma_param, m) * omega * sigma * ivs ** beta * vanna * (1 / (F*gamma)) + omega**2 * ivs ** (2*beta) * volga * (1 / (F**2 * gamma))), strikes
 
 class GVVPlus(GVVUtils):
     """
@@ -338,7 +355,15 @@ class GVVPlus(GVVUtils):
 class SVI:
 
     def implied_parameters(self, S: float, strikes: list[float], ivs: list[list[float]], dte: list[float], guess=[0.02, 0.5, -0.5, 0, 0.2], bounds=((None, None), (1e-8, 10), (-.999, .999), (None, None), (1e-8, 5)), method='SLSQP', tol=1e-3):
-
+        """
+        This function uses an optimizer to find the optiomal parameters from the raw svi parameterization of total implied variance.
+        w(k) = a + b * (rho * (k - m) + sqrt((k - m)**2 + sigma**2))
+        a: vertical level of the total variance smile
+        b: Overall slope and wing-steepness parameter.
+        rho: Asymmetry or skew parameter.
+        m: Horizontal location or center parameter.
+        sigma: Curvature or smoothness parameter.
+        """
         def svi_error(S, strikes, market_ivs, dte, model, **kwargs):
             model_ivs = model(S, strikes, dte = dte, **kwargs)
             return np.sum((np.array(market_ivs) - np.array(model_ivs)) ** 2)
@@ -365,7 +390,7 @@ class SVI:
 
         k = np.log(strikes/S)
         total_var = a + b * (rho*(k - m) + np.sqrt((k - m)**2 + sigma**2))
-        return np.sqrt(total_var/dte)
+        return np.sqrt(total_var/dte), strikes
 
 class SABR(VolatilityModel):
 
